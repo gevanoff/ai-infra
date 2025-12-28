@@ -126,6 +126,16 @@ sudo rsync -a --delete \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
   "${SRC_DIR}/" "${APP_DIR}/"
 
+# ---- install model alias config (non-destructive) ----
+# The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
+# Only install the example template if no file exists yet.
+ALIASES_DST="${APP_DIR}/model_aliases.json"
+ALIASES_EXAMPLE_SRC="${SERVICE_DIR}/env/model_aliases.json.example"
+if [[ ! -f "${ALIASES_DST}" && -f "${ALIASES_EXAMPLE_SRC}" ]]; then
+  echo "Installing default model_aliases.json (template)"
+  sudo cp "${ALIASES_EXAMPLE_SRC}" "${ALIASES_DST}"
+fi
+
 if [[ ! -f "${APP_DIR}/app/main.py" ]]; then
   echo "ERROR: deploy completed but ASGI module missing at ${APP_DIR}/app/main.py" >&2
   echo "Hint: check rsync excludes and that ${SRC_DIR}/app/main.py exists." >&2

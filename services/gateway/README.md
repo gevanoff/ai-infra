@@ -73,6 +73,14 @@ Responses include:
 
 - `X-Backend-Used`, `X-Model-Used`, `X-Router-Reason`
 
+### Model aliases (stable names like `coder`, `fast`)
+
+Gateway supports a small alias registry so clients can send `model: "coder"` and the gateway resolves it to a specific backend + upstream model.
+
+- Template: `services/gateway/env/model_aliases.json.example`
+- Runtime path (read by the app): `/var/lib/gateway/app/model_aliases.json`
+- Deploy behavior: `deploy.sh` copies the template into the runtime path **only if** the runtime file does not already exist.
+
 ### Memory v2
 
 Memory v2 stores typed memories with source + timestamps, supports filtered retrieval, and supports compaction.
