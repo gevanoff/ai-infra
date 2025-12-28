@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.mlx.openai.server</string>
+
+    <key>UserName</key><string>mlx</string>
+    <key>WorkingDirectory</key><string>/var/lib/mlx</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/var/lib/mlx/env/bin/mlx-openai-server</string>
+      <string>launch</string>
+      <string>--model-path</string>
+      <string>mlx-community/gemma-2-2b-it-8bit</string>
+      <string>--model-type</string>
+      <string>lm</string>
+      <string>--host</string>
+      <string>127.0.0.1</string>
+      <string>--port</string>
+      <string>10240</string>
+    </array>
+
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/mlx</string>
+      <key>HF_HOME</key><string>/var/lib/mlx/cache/huggingface</string>
+      <key>XDG_CACHE_HOME</key><string>/var/lib/mlx/cache</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/mlx/mlx-openai.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/mlx/mlx-openai.err.log</string>
+  </dict>
+</plist>

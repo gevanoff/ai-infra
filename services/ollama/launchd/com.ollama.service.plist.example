@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.ollama.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/local/bin/ollama</string>
+      <string>serve</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Run as the dedicated service account -->
+    <key>UserName</key>
+    <string>ollama</string>
+
+    <!-- Environment -->
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>OLLAMA_HOST</key>
+      <string>127.0.0.1:11434</string>
+
+      <!-- Persist model storage outside any user home -->
+      <key>OLLAMA_MODELS</key>
+      <string>/var/lib/ollama/models</string>
+    </dict>
+
+    <!-- Logs -->
+    <key>StandardOutPath</key>
+    <string>/var/log/ollama/ollama.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/ollama/ollama.err.log</string>
+  </dict>
+</plist>
+
