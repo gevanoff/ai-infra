@@ -7,6 +7,7 @@ macOS launchd-based infrastructure scripts for running local AI services.
 - `services/gateway`: FastAPI gateway exposing OpenAI-ish APIs; proxies to Ollama and MLX.
 - `services/ollama`: Ollama runtime + model manifest.
 - `services/mlx`: MLX OpenAI server runtime + model manifest.
+- `services/all`: convenience scripts that call all services.
 
 Each service follows the same pattern:
 
@@ -46,3 +47,11 @@ Models are listed in [services/ollama/models/manifest.txt](services/ollama/model
 - Restart/status/uninstall: `services/mlx/scripts/{restart,status,uninstall}.sh`
 
 Models are listed in [services/mlx/models/manifest.txt](services/mlx/models/manifest.txt).
+
+## All services
+
+Convenience wrappers:
+
+- `services/all/scripts/install.sh`
+- `services/all/scripts/restart.sh`
+- `services/all/scripts/status.sh`
