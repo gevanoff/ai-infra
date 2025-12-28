@@ -23,7 +23,39 @@ require_cmd sed
 require_cmd tail
 
 # ---- config (edit if your labels/paths differ) ----
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SERVICE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"  # ai-infra/services/gateway
+AI_INFRA_ROOT="$(cd "${SERVICE_DIR}/../.." && pwd)"  # ai-infra
+
+# Where to deploy FROM (the gateway app source tree)
+# - Preferred: set GATEWAY_SRC_DIR to your local gateway checkout
+# - Default:   sibling checkout next to ai-infra (../gateway)
+GATEWAY_SRC_DIR="${GATEWAY_SRC_DIR:-}"
+
+SRC_DIR=""
+for cand in \
+  "${GATEWAY_SRC_DIR}" \
+  "${AI_INFRA_ROOT}/../gateway" \
+  "${AI_INFRA_ROOT}/../../gateway" \
+; do
+  [[ -n "${cand}" ]] || continue
+  if [[ -f "${cand}/app/main.py" ]]; then
+    SRC_DIR="${cand}"
+    break
+  fi
+done
+
+if [[ -z "${SRC_DIR}" ]]; then
+  echo "ERROR: Could not find gateway source tree (missing app/main.py)." >&2
+  echo "Tried:" >&2
+  echo "  - GATEWAY_SRC_DIR=${GATEWAY_SRC_DIR:-\"\"}" >&2
+  echo "  - ${AI_INFRA_ROOT}/../gateway" >&2
+  echo "  - ${AI_INFRA_ROOT}/../../gateway" >&2
+  echo "Hint: clone the gateway repo next to ai-infra (../gateway)," >&2
+  echo "      or export GATEWAY_SRC_DIR=/path/to/your/gateway checkout." >&2
+  exit 1
+fi
+
 RUNTIME_ROOT="/var/lib/gateway"
 APP_DIR="${RUNTIME_ROOT}/app"
 LAUNCHD_LABEL="com.ai.gateway"
@@ -38,10 +70,6 @@ CURL_CONNECT_TIMEOUT_SEC="1"
 CURL_MAX_TIME_SEC="2"
 
 # ---- safety checks ----
-if [[ ! -d "${REPO_ROOT}/.git" ]]; then
-  echo "ERROR: ${REPO_ROOT} does not look like a git repo (missing .git)" >&2
-  exit 1
-fi
 
 if [[ ! -d "${RUNTIME_ROOT}" ]]; then
   echo "ERROR: runtime root ${RUNTIME_ROOT} does not exist" >&2
@@ -49,7 +77,7 @@ if [[ ! -d "${RUNTIME_ROOT}" ]]; then
   exit 1
 fi
 
-echo "Repo:    ${REPO_ROOT}"
+echo "Source:  ${SRC_DIR}"
 echo "Deploy:  ${APP_DIR}"
 echo "Label:   ${LAUNCHD_LABEL}"
 
@@ -67,8 +95,8 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
 fi
 
 # The repo layout is app/main.py, so the deployed entrypoint is ${APP_DIR}/app/main.py
-if [[ ! -f "${REPO_ROOT}/app/main.py" ]]; then
-  echo "ERROR: expected source module not found at ${REPO_ROOT}/app/main.py" >&2
+if [[ ! -f "${SRC_DIR}/app/main.py" ]]; then
+  echo "ERROR: expected source module not found at ${SRC_DIR}/app/main.py" >&2
   echo "Hint: repo layout changed? update the rsync source or the plist entrypoint." >&2
   exit 1
 fi
@@ -96,11 +124,11 @@ sudo rsync -a --delete \
   --exclude 'data/' --exclude '*.sqlite' --exclude '*.sqlite3' --exclude '*.db' --exclude '*.wal' --exclude '*.shm' \
   --exclude 'logs/' --exclude '*.log' \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
-  "${REPO_ROOT}/" "${APP_DIR}/"
+  "${SRC_DIR}/" "${APP_DIR}/"
 
 if [[ ! -f "${APP_DIR}/app/main.py" ]]; then
   echo "ERROR: deploy completed but ASGI module missing at ${APP_DIR}/app/main.py" >&2
-  echo "Hint: check rsync excludes and that ${REPO_ROOT}/app/main.py exists." >&2
+  echo "Hint: check rsync excludes and that ${SRC_DIR}/app/main.py exists." >&2
   exit 1
 fi
 
