@@ -16,11 +16,24 @@ macOS launchd-managed FastAPI gateway that proxies to local backends (Ollama + M
 From `services/gateway/scripts/`:
 
 - `install.sh`: Creates runtime dirs + venv, installs the launchd plist, optionally installs Python deps if gateway code is already deployed.
-- `deploy.sh`: Rsyncs this repo’s `services/gateway/` contents into `/var/lib/gateway/app` and restarts launchd; waits for `/health`.
+- `deploy.sh`: Rsyncs the **gateway app source tree** into `/var/lib/gateway/app` and restarts launchd; waits for `/health`.
 - `restart.sh`: Restarts the launchd job.
 - `status.sh`: Shows launchd state + listener + recent logs.
 - `uninstall.sh`: Unloads and removes the plist.
+- `smoke_test.sh`: Minimal checks: `/health` and `/v1/models` (requires `GATEWAY_BEARER_TOKEN`).
 - `smoke_test_gateway.sh`: Hits `/health`, `/v1/models`, `/v1/embeddings` (requires `GATEWAY_BEARER_TOKEN`).
+
+### Gateway source discovery (deploy)
+
+`deploy.sh` needs to know where your **gateway repo checkout** lives (it is separate from `ai-infra`).
+
+It searches in this order:
+
+1. `GATEWAY_SRC_DIR` (if set)
+2. Sibling checkout next to `ai-infra`: `../gateway`
+3. One level higher: `../../gateway`
+
+The directory is considered valid if it contains `app/main.py`.
 
 ## Launchd
 
@@ -101,8 +114,10 @@ Safety is enforced via a local allowlist:
 
 1. Deploy or update gateway code into `/var/lib/gateway/app`:
    - run `services/gateway/scripts/deploy.sh`
+   - if your gateway checkout is not in `../gateway`, use: `GATEWAY_SRC_DIR=/path/to/gateway services/gateway/scripts/deploy.sh`
 2. Install service (first time only):
    - run `services/gateway/scripts/install.sh`
 3. Validate:
    - `services/gateway/scripts/status.sh`
-   - `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test_gateway.sh`
+   - `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test.sh`
+   - (deeper) `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test_gateway.sh`
