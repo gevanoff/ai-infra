@@ -5,6 +5,9 @@ LABEL="com.ai.gateway"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="${HERE}/../launchd/${LABEL}.plist.example"
 DST="/Library/LaunchDaemons/${LABEL}.plist"
+VENV_PY="/var/lib/gateway/env/bin/python"
+REQ1="/var/lib/gateway/app/app/requirements.txt"
+REQ2="/var/lib/gateway/app/app/requirements.freeze.txt"
 
 # Runtime dirs expected by the gateway
 sudo mkdir -p /var/lib/gateway/{app,data,tools} /var/log/gateway
@@ -19,15 +22,32 @@ sudo chown -R gateway:staff /var/lib/gateway /var/log/gateway
 sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/gateway /var/log/gateway
 
 # Ensure a venv exists (used by the plist)
-if [[ ! -x /var/lib/gateway/env/bin/python ]]; then
+if [[ ! -x "${VENV_PY}" ]]; then
   if ! command -v python3 >/dev/null 2>&1; then
     echo "ERROR: python3 not found (needed to create /var/lib/gateway/env venv)" >&2
     exit 1
   fi
   sudo python3 -m venv /var/lib/gateway/env
-  sudo /var/lib/gateway/env/bin/python -m pip install -U pip >/dev/null
+  sudo "${VENV_PY}" -m pip install -U pip >/dev/null
   sudo chown -R gateway:staff /var/lib/gateway/env
   sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/gateway/env
+fi
+
+# Install Python deps if the gateway code has already been deployed.
+# (We intentionally do not require deploy to have run before install.)
+REQ_FILE=""
+if [[ -f "${REQ1}" ]]; then
+  REQ_FILE="${REQ1}"
+elif [[ -f "${REQ2}" ]]; then
+  REQ_FILE="${REQ2}"
+fi
+
+if [[ -n "${REQ_FILE}" ]]; then
+  echo "Installing gateway Python dependencies from ${REQ_FILE}..." >&2
+  sudo -u gateway "${VENV_PY}" -m pip install -r "${REQ_FILE}"
+else
+  echo "NOTE: requirements not found at ${REQ1} or ${REQ2}; skipping pip install." >&2
+  echo "Hint: run the gateway deploy script to populate /var/lib/gateway/app, then rerun install.sh." >&2
 fi
 
 # Seed .env if missing (do NOT overwrite if it exists)
