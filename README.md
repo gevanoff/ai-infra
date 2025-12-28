@@ -33,6 +33,12 @@ Gateway has a dedicated deploy step because it ships code:
 
 See [services/gateway/README.md](services/gateway/README.md).
 
+Gateway supports:
+
+- Policy-based routing (fast vs strong, long-context) with per-request overrides.
+- Memory v2 (`/v1/memory/*`) with typed memories, filters, and compaction.
+- Tool bus (`/v1/tools`) with strict allowlist + safe `http_fetch`.
+
 ## Ollama
 
 - Install service: `services/ollama/scripts/install.sh`

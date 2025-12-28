@@ -36,6 +36,67 @@ Example env file: `services/gateway/env/gateway.env.example`
 
 You must set `GATEWAY_BEARER_TOKEN` to a secret value in `/var/lib/gateway/app/.env`.
 
+### Router policy (automatic backend/model selection)
+
+Gateway can automatically pick a backend + model per request:
+
+- Tool-heavy / agentic requests (`tools` present) route to the configured **strong** model.
+- “Fast/cheap” default routes to the configured **fast** model.
+- Long-context requests route to MLX (if configured) once input size crosses a threshold.
+
+Env vars:
+
+- `DEFAULT_BACKEND=ollama|mlx`
+- `OLLAMA_MODEL_STRONG=...`, `OLLAMA_MODEL_FAST=...`
+- `MLX_MODEL_STRONG=...`, `MLX_MODEL_FAST=...`
+- `ROUTER_LONG_CONTEXT_CHARS=40000`
+
+Per-request overrides:
+
+- Header `X-Backend: ollama|mlx`
+- Model prefixes `ollama:<name>` / `mlx:<name>`
+
+Responses include:
+
+- `X-Backend-Used`, `X-Model-Used`, `X-Router-Reason`
+
+### Memory v2
+
+Memory v2 stores typed memories with source + timestamps, supports filtered retrieval, and supports compaction.
+
+Env vars:
+
+- `MEMORY_V2_ENABLED=true|false`
+- `MEMORY_V2_MAX_AGE_SEC=...` (used by default retrieval/compaction)
+- `MEMORY_V2_TYPES_DEFAULT=fact,preference,project`
+
+Endpoints (bearer-protected):
+
+- `POST /v1/memory/upsert`
+- `GET /v1/memory/list`
+- `POST /v1/memory/search`
+- `POST /v1/memory/compact`
+
+### Tool bus
+
+Gateway can expose a local “tool bus” for agents.
+
+Endpoints (bearer-protected):
+
+- `GET /v1/tools` (schemas)
+- `POST /v1/tools/{name}` (execute)
+
+Safety is enforced via a local allowlist:
+
+- `TOOLS_ALLOWLIST=read_file,write_file,http_fetch` (if set, this is the only allowlist)
+- Or use toggles: `TOOLS_ALLOW_SHELL`, `TOOLS_ALLOW_FS`, `TOOLS_ALLOW_HTTP_FETCH`
+
+`http_fetch` is restricted by host allowlist + limits:
+
+- `TOOLS_HTTP_ALLOWED_HOSTS=127.0.0.1,localhost`
+- `TOOLS_HTTP_TIMEOUT_SEC=10`
+- `TOOLS_HTTP_MAX_BYTES=200000`
+
 ## Typical flow (macOS host)
 
 1. Deploy or update gateway code into `/var/lib/gateway/app`:
