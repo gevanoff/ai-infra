@@ -126,6 +126,11 @@ sudo rsync -a --delete \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
   "${SRC_DIR}/" "${APP_DIR}/"
 
+# Make helper scripts executable (best-effort; non-fatal).
+if [[ -f "${APP_DIR}/tools/openai_sdk_stream_test.py" ]]; then
+  sudo chmod 755 "${APP_DIR}/tools/openai_sdk_stream_test.py" || true
+fi
+
 # ---- install model alias config (non-destructive) ----
 # The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
 # Only install the example template if no file exists yet.
