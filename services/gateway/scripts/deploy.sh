@@ -127,7 +127,10 @@ sudo rsync -a --delete \
   "${SRC_DIR}/" "${APP_DIR}/"
 
 # Make helper scripts executable (best-effort; non-fatal).
-if [[ -f "${APP_DIR}/tools/openai_sdk_stream_test.py" ]]; then
+sudo mkdir -p "${APP_DIR}/tools"
+if [[ -f "${SRC_DIR}/tools/openai_sdk_stream_test.py" ]]; then
+  # Explicitly copy (some operators customize rsync excludes; this guarantees the file lands).
+  sudo cp "${SRC_DIR}/tools/openai_sdk_stream_test.py" "${APP_DIR}/tools/openai_sdk_stream_test.py" || true
   sudo chmod 755 "${APP_DIR}/tools/openai_sdk_stream_test.py" || true
 fi
 
