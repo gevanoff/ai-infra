@@ -8,6 +8,7 @@ DST="/Library/LaunchDaemons/${LABEL}.plist"
 VENV_PY="/var/lib/gateway/env/bin/python"
 REQ1="/var/lib/gateway/app/app/requirements.txt"
 REQ2="/var/lib/gateway/app/app/requirements.freeze.txt"
+TOOLS_REQ="/var/lib/gateway/app/tools/requirements.txt"
 
 # Runtime dirs expected by the gateway
 sudo mkdir -p /var/lib/gateway/{app,data,tools} /var/log/gateway
@@ -48,6 +49,12 @@ if [[ -n "${REQ_FILE}" ]]; then
 else
   echo "NOTE: requirements not found at ${REQ1} or ${REQ2}; skipping pip install." >&2
   echo "Hint: run the gateway deploy script to populate /var/lib/gateway/app, then rerun install.sh." >&2
+fi
+
+# Install optional tool-script deps (e.g. OpenAI SDK streaming sanity check)
+if [[ -f "${TOOLS_REQ}" ]]; then
+  echo "Installing gateway tool-script dependencies from ${TOOLS_REQ}..." >&2
+  sudo -u gateway "${VENV_PY}" -m pip install -r "${TOOLS_REQ}"
 fi
 
 # Seed .env if missing (do NOT overwrite if it exists)
