@@ -8,8 +8,14 @@ macOS launchd-managed FastAPI gateway that proxies to local backends (Ollama + M
 - Venv (used by launchd): `/var/lib/gateway/env`
 - Env file (read by the app): `/var/lib/gateway/app/.env`
 - Data: `/var/lib/gateway/data` (SQLite memory DB)
-- Tools working dir: `/var/lib/gateway/tools`
+- Tools working dir (sandbox/CWD for tool execution): `/var/lib/gateway/tools`
+- Tool scripts/config shipped with the app: `/var/lib/gateway/app/tools`
 - Logs: `/var/log/gateway/gateway.{out,err}.log`
+
+Note: `deploy.sh` also creates a convenience symlink so you can run the streaming SDK test from either path:
+
+- `/var/lib/gateway/app/tools/openai_sdk_stream_test.py` (canonical, deployed with the app)
+- `/var/lib/gateway/tools/openai_sdk_stream_test.py` (symlink)
 
 ## Scripts
 

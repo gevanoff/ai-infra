@@ -58,6 +58,7 @@ fi
 
 RUNTIME_ROOT="/var/lib/gateway"
 APP_DIR="${RUNTIME_ROOT}/app"
+TOOLS_DIR="${RUNTIME_ROOT}/tools"
 LAUNCHD_LABEL="com.ai.gateway"
 PLIST="/Library/LaunchDaemons/${LAUNCHD_LABEL}.plist"
 HEALTH_URL="http://127.0.0.1:8800/health"
@@ -103,9 +104,9 @@ fi
 
 # ---- ensure runtime layout expected by app ----
 # main.py reads env from /var/lib/gateway/app/.env, uses /var/lib/gateway/tools, and writes /var/lib/gateway/data/memory.sqlite
-sudo mkdir -p "${RUNTIME_ROOT}/data" "${RUNTIME_ROOT}/tools"
-sudo chown -R gateway:staff "${RUNTIME_ROOT}/data" "${RUNTIME_ROOT}/tools"
-sudo chmod -R u+rwX,g+rX,o-rwx "${RUNTIME_ROOT}/data" "${RUNTIME_ROOT}/tools"
+sudo mkdir -p "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
+sudo chown -R gateway:staff "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
+sudo chmod -R u+rwX,g+rX,o-rwx "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
 
 # launchd won't create parent log directories; the plist points stdout/stderr into /var/log/gateway
 sudo mkdir -p "${LOG_DIR}"
@@ -132,6 +133,10 @@ if [[ -f "${SRC_DIR}/tools/openai_sdk_stream_test.py" ]]; then
   # Explicitly copy (some operators customize rsync excludes; this guarantees the file lands).
   sudo cp "${SRC_DIR}/tools/openai_sdk_stream_test.py" "${APP_DIR}/tools/openai_sdk_stream_test.py" || true
   sudo chmod 755 "${APP_DIR}/tools/openai_sdk_stream_test.py" || true
+
+  # Convenience: provide a stable path under /var/lib/gateway/tools as well.
+  # /var/lib/gateway/tools is the tool sandbox/working directory, but people often look for scripts there.
+  sudo ln -sf "${APP_DIR}/tools/openai_sdk_stream_test.py" "${TOOLS_DIR}/openai_sdk_stream_test.py" || true
 fi
 
 # ---- install model alias config (non-destructive) ----
