@@ -12,6 +12,18 @@ macOS launchd-managed FastAPI gateway that proxies to local backends (Ollama + M
 - Tool scripts/config shipped with the app: `/var/lib/gateway/app/tools`
 - Logs: `/var/log/gateway/gateway.{out,err}.log`
 
+JSONL logs written by the gateway (optional, best-effort):
+
+- Request events: `/var/lib/gateway/data/requests.jsonl` (controlled by `REQUEST_LOG_ENABLED` / `REQUEST_LOG_PATH`)
+- Tool bus events:
+   - NDJSON: `/var/lib/gateway/data/tools/invocations.jsonl` (controlled by `TOOLS_LOG_PATH`, `TOOLS_LOG_MODE=ndjson|both`)
+   - Per-invocation: `/var/lib/gateway/data/tools/{replay_id}.json` (controlled by `TOOLS_LOG_DIR`, `TOOLS_LOG_MODE=per_invocation|both`)
+
+Rotation/cleanup notes:
+
+- For NDJSON (`*.jsonl`), rotate/truncate externally (e.g., logrotate or a periodic job). The gateway app does not manage file size.
+- For per-invocation logs, periodically delete old `{replay_id}.json` files by mtime/age.
+
 Note: `deploy.sh` also creates a convenience symlink so you can run the streaming SDK test from either path:
 
 - `/var/lib/gateway/app/tools/openai_sdk_stream_test.py` (canonical, deployed with the app)
@@ -112,6 +124,28 @@ Endpoints (bearer-protected):
 
 - `GET /v1/tools` (schemas)
 - `POST /v1/tools/{name}` (execute)
+- `GET /v1/tools/replay/{replay_id}` (fetch a logged invocation event)
+
+#### Tool bus contract (stable fields)
+
+`GET /v1/tools` returns a list of tool declarations:
+
+- Always includes: `name`, `version`, `description`, `parameters`
+- Also includes:
+   - `declared`: `true|false` (allowlisted but missing declaration => `false`)
+   - `source`: `builtin|registry|missing`
+
+`POST /v1/tools/{name}` success response is a tool-defined payload with a stable envelope:
+
+- `replay_id`: unique invocation id
+- `request_hash`: deterministic sha256 over `{tool, version, arguments}`
+- `tool_runtime_ms`, `tool_cpu_ms`, `tool_io_bytes`: best-effort metrics
+- Tool-specific fields such as `ok`, `error`, `stdout`, `stderr`, `stdout_json`
+
+Error responses (HTTP 4xx) use a consistent `detail` object:
+
+- `detail.error`, `detail.error_type`, `detail.error_message`
+- `detail.issues` is present for schema validation failures (`error_type=invalid_arguments`)
 
 Safety is enforced via a local allowlist:
 
@@ -123,6 +157,30 @@ Safety is enforced via a local allowlist:
 - `TOOLS_HTTP_ALLOWED_HOSTS=127.0.0.1,localhost`
 - `TOOLS_HTTP_TIMEOUT_SEC=10`
 - `TOOLS_HTTP_MAX_BYTES=200000`
+
+#### Explicit tool registry (infra-owned)
+
+Gateway can optionally load additional tools from an explicit registry file (no implicit discovery). Each tool is:
+
+- Declared with `name`, `version`, `description`, and JSON Schema `parameters`
+- Executed via a deterministic subprocess wrapper (args JSON on stdin, timeout, stdout/stderr capture, exit code)
+
+Env var:
+
+- `TOOLS_REGISTRY_PATH=/var/lib/gateway/app/tools_registry.json`
+
+Example template:
+
+- `services/gateway/env/tools_registry.json.example`
+
+#### Ops knobs (recommended defaults)
+
+- Hard limits:
+   - `TOOLS_MAX_CONCURRENT`, `TOOLS_CONCURRENCY_TIMEOUT_SEC`
+   - `TOOLS_SUBPROCESS_STDOUT_MAX_CHARS`, `TOOLS_SUBPROCESS_STDERR_MAX_CHARS`
+- Optional rate limiting (disabled by default): `TOOLS_RATE_LIMIT_RPS`, `TOOLS_RATE_LIMIT_BURST`
+- Optional metrics endpoint: `GET /metrics` (bearer-protected, controlled by `METRICS_ENABLED`)
+- Optional registry integrity: `TOOLS_REGISTRY_SHA256` (sha256 hex; mismatches cause registry to be ignored)
 
 ## Typical flow (macOS host)
 

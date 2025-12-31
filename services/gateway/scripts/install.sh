@@ -11,7 +11,7 @@ REQ2="/var/lib/gateway/app/app/requirements.freeze.txt"
 TOOLS_REQ="/var/lib/gateway/app/tools/requirements.txt"
 
 # Runtime dirs expected by the gateway
-sudo mkdir -p /var/lib/gateway/{app,data,tools} /var/log/gateway
+sudo mkdir -p /var/lib/gateway/{app,data,tools} /var/lib/gateway/data/tools /var/log/gateway
 
 if ! id -u gateway >/dev/null 2>&1; then
   echo "ERROR: user 'gateway' does not exist on this machine" >&2

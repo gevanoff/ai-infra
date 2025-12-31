@@ -1,0 +1,23 @@
+{
+  "tools": [
+    {
+      "name": "echo",
+      "version": "1",
+      "description": "Example tool executed as a subprocess. Reads JSON args on stdin; writes text/JSON to stdout.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "msg": { "type": "string" }
+        },
+        "required": ["msg"],
+        "additionalProperties": false
+      },
+      "exec": {
+        "type": "subprocess",
+        "argv": ["/usr/bin/python3", "-c", "import sys,json; a=json.load(sys.stdin); print(a.get('msg',''))"],
+        "timeout_sec": 5,
+        "cwd": "/var/lib/gateway/tools"
+      }
+    }
+  ]
+}
