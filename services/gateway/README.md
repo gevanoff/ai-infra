@@ -38,7 +38,8 @@ From `services/gateway/scripts/`:
 - `restart.sh`: Restarts the launchd job.
 - `status.sh`: Shows launchd state + listener + recent logs.
 - `uninstall.sh`: Unloads and removes the plist.
-- `smoke_test.sh`: Minimal checks: `/health` and `/v1/models` (requires `GATEWAY_BEARER_TOKEN`).
+- `verify.sh`: Comprehensive single-command verification (requires `GATEWAY_BEARER_TOKEN`; can require a healthy backend).
+- `smoke_test.sh`: Alias for `verify.sh`.
 - `smoke_test_gateway.sh`: Hits `/health`, `/v1/models`, `/v1/embeddings` (requires `GATEWAY_BEARER_TOKEN`).
 
 ### Gateway source discovery (deploy)
@@ -191,5 +192,6 @@ Example template:
    - run `services/gateway/scripts/install.sh`
 3. Validate:
    - `services/gateway/scripts/status.sh`
-   - `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test.sh`
+   - `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/verify.sh`
+   - (alias) `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test.sh`
    - (deeper) `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test_gateway.sh`
