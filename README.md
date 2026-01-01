@@ -31,6 +31,13 @@ Gateway has a dedicated deploy step because it ships code:
 - Status/logs: `services/gateway/scripts/status.sh`
 - Smoke test (requires token): `services/gateway/scripts/smoke_test_gateway.sh`
 
+Appliance helpers:
+
+- Freeze a release manifest: `services/gateway/scripts/freeze_release.sh`
+- Run the appliance smoketest: `services/gateway/scripts/appliance_smoketest.sh`
+- Idempotent install/upgrade wrapper: `services/gateway/scripts/appliance_install_or_upgrade.sh`
+- Optional post-deploy hook: `services/gateway/scripts/deploy.sh --post-deploy-hook` (logs to `/var/log/gateway/post_deploy_hook.log`)
+
 See [services/gateway/README.md](services/gateway/README.md).
 
 Gateway supports:
