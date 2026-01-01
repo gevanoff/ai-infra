@@ -109,13 +109,18 @@ fi
 
 echo "Base URL: ${BASE_URL}"
 
-"${PYTHON_BIN}" "${SCRIPT_PATH}" --base-url "${BASE_URL}" --token "${TOKEN}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+"${PYTHON_BIN}" "${SCRIPT_PATH}" --skip-pytest --base-url "${BASE_URL}" --token "${TOKEN}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 if [[ ${RUN_PYTEST} -eq 1 ]]; then
   if [[ ! -d "/var/lib/gateway/app" ]]; then
     echo "ERROR: /var/lib/gateway/app not found; cannot run pytest" >&2
     exit 1
   fi
-  echo "Running pytest in /var/lib/gateway/app ..."
-  (cd "/var/lib/gateway/app" && "${PYTHON_BIN}" -m pytest -q)
+  if command -v sudo >/dev/null 2>&1; then
+    echo "Running pytest in /var/lib/gateway/app (as user 'gateway') ..."
+    (cd "/var/lib/gateway/app" && sudo -u gateway -H env MEMORY_ENABLED=false MEMORY_V2_ENABLED=false "${PYTHON_BIN}" -m pytest -q)
+  else
+    echo "ERROR: sudo is required for --pytest (to run tests as user 'gateway')." >&2
+    exit 1
+  fi
 fi
