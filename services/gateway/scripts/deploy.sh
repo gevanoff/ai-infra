@@ -139,6 +139,15 @@ if [[ -f "${SRC_DIR}/tools/openai_sdk_stream_test.py" ]]; then
   sudo ln -sf "${APP_DIR}/tools/openai_sdk_stream_test.py" "${TOOLS_DIR}/openai_sdk_stream_test.py" || true
 fi
 
+if [[ -f "${SRC_DIR}/tools/verify_gateway.py" ]]; then
+  # Explicitly copy (some operators customize rsync excludes; this guarantees the file lands).
+  sudo cp "${SRC_DIR}/tools/verify_gateway.py" "${APP_DIR}/tools/verify_gateway.py" || true
+  sudo chmod 755 "${APP_DIR}/tools/verify_gateway.py" || true
+
+  # Convenience: stable path under /var/lib/gateway/tools as well.
+  sudo ln -sf "${APP_DIR}/tools/verify_gateway.py" "${TOOLS_DIR}/verify_gateway.py" || true
+fi
+
 # ---- install model alias config (non-destructive) ----
 # The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
 # Only install the example template if no file exists yet.
