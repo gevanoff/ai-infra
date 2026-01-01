@@ -22,6 +22,44 @@ require_cmd lsof
 require_cmd sed
 require_cmd tail
 
+POST_DEPLOY_HOOK=0
+
+usage() {
+  cat <<EOF
+Usage: $0 [--post-deploy-hook]
+
+Deploys the gateway repo into /var/lib/gateway/app and restarts launchd.
+
+Flags:
+  --post-deploy-hook   After a successful deploy, run freeze_release.sh then appliance_smoketest.sh.
+
+Env:
+  GATEWAY_POST_DEPLOY_HOOK=1   Same as --post-deploy-hook.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --post-deploy-hook)
+      POST_DEPLOY_HOOK=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown arg: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "${GATEWAY_POST_DEPLOY_HOOK:-}" == "1" ]]; then
+  POST_DEPLOY_HOOK=1
+fi
+
 # ---- config (edit if your labels/paths differ) ----
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVICE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"  # ai-infra/services/gateway
@@ -127,6 +165,24 @@ sudo rsync -a --delete \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
   "${SRC_DIR}/" "${APP_DIR}/"
 
+# ---- stamp deployed commits (best-effort) ----
+# These files allow generating a release manifest later without requiring git.
+if command -v git >/dev/null 2>&1; then
+  if [[ -d "${SRC_DIR}/.git" ]]; then
+    GATEWAY_COMMIT="$(git -C "${SRC_DIR}" rev-parse HEAD 2>/dev/null || true)"
+    if [[ -n "${GATEWAY_COMMIT}" ]]; then
+      echo "${GATEWAY_COMMIT}" | sudo tee "${APP_DIR}/DEPLOYED_GATEWAY_COMMIT" >/dev/null || true
+    fi
+  fi
+
+  if [[ -d "${AI_INFRA_ROOT}/.git" ]]; then
+    AI_INFRA_COMMIT="$(git -C "${AI_INFRA_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+    if [[ -n "${AI_INFRA_COMMIT}" ]]; then
+      echo "${AI_INFRA_COMMIT}" | sudo tee "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" >/dev/null || true
+    fi
+  fi
+fi
+
 # Make helper scripts executable (best-effort; non-fatal).
 sudo mkdir -p "${APP_DIR}/tools"
 if [[ -f "${SRC_DIR}/tools/openai_sdk_stream_test.py" ]]; then
@@ -206,3 +262,16 @@ echo "Checking port ${PORT}..."
 sudo lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN || true
 
 echo "Deploy complete."
+
+if [[ ${POST_DEPLOY_HOOK} -eq 1 ]]; then
+  HOOK_SCRIPT="${SCRIPT_DIR}/post_deploy_hook.sh"
+  if [[ -x "${HOOK_SCRIPT}" ]]; then
+    echo "Running post-deploy hook (${HOOK_SCRIPT})..."
+    "${HOOK_SCRIPT}"
+    echo "Post-deploy hook OK."
+  else
+    echo "ERROR: post-deploy hook enabled but missing/not executable: ${HOOK_SCRIPT}" >&2
+    echo "Hint: ensure ai-infra/services/gateway/scripts/post_deploy_hook.sh exists and is executable." >&2
+    exit 1
+  fi
+fi

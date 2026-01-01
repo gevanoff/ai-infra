@@ -40,7 +40,17 @@ From `services/gateway/scripts/`:
 - `uninstall.sh`: Unloads and removes the plist.
 - `verify.sh`: Comprehensive single-command verification (requires `GATEWAY_BEARER_TOKEN`; can require a healthy backend).
 - `smoke_test.sh`: Alias for `verify.sh`.
-- `smoke_test_gateway.sh`: Hits `/health`, `/v1/models`, `/v1/embeddings` (requires `GATEWAY_BEARER_TOKEN`).
+- `smoke_test_gateway.sh`: Hits `/health`, `/v1/models`, `/v1/embeddings`, `/v1/responses` (requires `GATEWAY_BEARER_TOKEN`).
+
+Appliance helpers:
+
+- `freeze_release.sh`: Writes a timestamped release manifest under `/var/lib/gateway/data/releases/`.
+- `appliance_smoketest.sh`: Runs the verifier in `--appliance` mode (requires healthy backend + chat stream + embeddings + tool + replay).
+- `appliance_install_or_upgrade.sh`: Idempotent wrapper: install → deploy → freeze_release → appliance_smoketest.
+
+Deploy post-hook:
+
+- `deploy.sh --post-deploy-hook` (or `GATEWAY_POST_DEPLOY_HOOK=1`) runs `freeze_release.sh` then `appliance_smoketest.sh` after a successful deploy.
 
 ### Gateway source discovery (deploy)
 
@@ -67,6 +77,32 @@ Plist example: `services/gateway/launchd/com.ai.gateway.plist.example`
 Example env file: `services/gateway/env/gateway.env.example`
 
 You must set `GATEWAY_BEARER_TOKEN` to a secret value in `/var/lib/gateway/app/.env`.
+
+Optional: multi-token auth
+
+- `GATEWAY_BEARER_TOKENS=tok1,tok2,...` (comma-separated). If set, any listed token is accepted.
+- If `GATEWAY_BEARER_TOKENS` is empty, gateway falls back to `GATEWAY_BEARER_TOKEN`.
+
+Optional: per-token policy JSON
+
+- `GATEWAY_TOKEN_POLICIES_JSON` can apply best-effort per-token overrides (useful for associates).
+- Format: JSON object mapping bearer token -> policy object.
+- Supported keys currently used by the gateway:
+   - `tools_allowlist`: comma-separated tool allowlist for that token.
+   - `tools_allow_shell`, `tools_allow_fs`, `tools_allow_http_fetch`, `tools_allow_git`: booleans.
+   - `tools_allow_system_info`, `tools_allow_models_refresh`: booleans.
+   - `tools_rate_limit_rps`, `tools_rate_limit_burst`: numbers.
+   - `max_request_bytes`: number (overrides `MAX_REQUEST_BYTES` for that token).
+   - `ip_allowlist`: comma-separated IPs/CIDRs (overrides `IP_ALLOWLIST` for that token).
+
+Example:
+
+- `GATEWAY_TOKEN_POLICIES_JSON={"ASSOCIATE_TOKEN":{"tools_allowlist":"noop,http_fetch_local","tools_rate_limit_rps":2,"tools_rate_limit_burst":4}}`
+
+Optional request guardrails
+
+- `MAX_REQUEST_BYTES` (default 1,000,000). Requests larger than this return HTTP 413.
+- `IP_ALLOWLIST` (comma-separated IPs/CIDRs). When set, only those clients are allowed.
 
 ### Router policy (automatic backend/model selection)
 
@@ -110,12 +146,46 @@ Env vars:
 - `MEMORY_V2_MAX_AGE_SEC=...` (used by default retrieval/compaction)
 - `MEMORY_V2_TYPES_DEFAULT=fact,preference,project`
 
+Per-request retrieval overrides (optional)
+
+Memory injection can be overridden per request using `X-Memory-*` headers:
+
+- `X-Memory-Enabled: true|false`
+- `X-Memory-Types: fact,preference,project` (comma-separated)
+- `X-Memory-Sources: ...` (comma-separated; source names)
+- `X-Memory-Top-K: <int>`
+- `X-Memory-Min-Sim: <float>`
+- `X-Memory-Max-Age-Sec: <int>`
+- `X-Memory-Max-Chars: <int>`
+
+Example (`curl`)
+
+```bash
+curl -sS http://127.0.0.1:8800/v1/chat/completions \
+   -H "Authorization: Bearer $GATEWAY_BEARER_TOKEN" \
+   -H "Content-Type: application/json" \
+   -H "X-Memory-Enabled: true" \
+   -H "X-Memory-Types: fact,project" \
+   -H "X-Memory-Top-K: 4" \
+   -H "X-Memory-Min-Sim: 0.30" \
+   --data '{"model":"fast","messages":[{"role":"user","content":"What do you remember about this project?"}]}' \
+   | python -m json.tool
+```
+
 Endpoints (bearer-protected):
 
 - `POST /v1/memory/upsert`
 - `GET /v1/memory/list`
 - `POST /v1/memory/search`
 - `POST /v1/memory/compact`
+
+Additional endpoints (bearer-protected):
+
+- `POST /v1/memory/delete` (delete by id list)
+- `GET /v1/memory/export` (export/list with filters)
+- `POST /v1/memory/import` (bulk import; re-embeds each item)
+
+Note: if `MEMORY_V2_ENABLED=false`, these endpoints return `400 memory v2 disabled`.
 
 ### Tool bus
 
@@ -153,11 +223,31 @@ Safety is enforced via a local allowlist:
 - `TOOLS_ALLOWLIST=read_file,write_file,http_fetch` (if set, this is the only allowlist)
 - Or use toggles: `TOOLS_ALLOW_SHELL`, `TOOLS_ALLOW_FS`, `TOOLS_ALLOW_HTTP_FETCH`
 
+Per-token allowlists (optional):
+
+- You can override the allowlist per token via `GATEWAY_TOKEN_POLICIES_JSON` using `tools_allowlist`.
+
 `http_fetch` is restricted by host allowlist + limits:
 
 - `TOOLS_HTTP_ALLOWED_HOSTS=127.0.0.1,localhost`
 - `TOOLS_HTTP_TIMEOUT_SEC=10`
 - `TOOLS_HTTP_MAX_BYTES=200000`
+
+Additional safe tools (optional):
+
+- `http_fetch_local`: like `http_fetch` but hard-restricted to localhost.
+- `system_info`: returns non-sensitive runtime info (enable with `TOOLS_ALLOW_SYSTEM_INFO=true`).
+- `models_refresh`: pings upstream endpoints (enable with `TOOLS_ALLOW_MODELS_REFRESH=true`).
+
+These tools can also be enabled per-token via `GATEWAY_TOKEN_POLICIES_JSON` keys `tools_allow_system_info` and `tools_allow_models_refresh`.
+
+### OpenAI Responses API (minimal)
+
+Gateway exposes a minimal `POST /v1/responses` endpoint (bearer-protected) for clients that use the newer Responses API.
+
+- Best-effort mapping onto the existing chat completion path.
+- Supports both non-streaming and SSE streaming.
+- Limitation: streaming responses do not support tool calls (stream + tools returns 400).
 
 #### Explicit tool registry (infra-owned)
 

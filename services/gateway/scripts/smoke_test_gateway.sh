@@ -22,19 +22,26 @@ fi
 
 echo "Base URL: ${BASE_URL}"
 
-echo "[1/3] GET /health"
+echo "[1/4] GET /health"
 curl -fsS "${BASE_URL}/health" >/dev/null
 
-echo "[2/3] GET /v1/models"
+echo "[2/4] GET /v1/models"
 curl -fsS "${BASE_URL}/v1/models" \
   -H "Authorization: Bearer ${TOKEN}" \
   >/dev/null
 
-echo "[3/3] POST /v1/embeddings"
+echo "[3/4] POST /v1/embeddings"
 curl -fsS "${BASE_URL}/v1/embeddings" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"model":"default","input":"smoke test"}' \
+  >/dev/null
+
+echo "[4/4] POST /v1/responses (non-stream)"
+curl -fsS "${BASE_URL}/v1/responses" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"fast","input":"smoke test","stream":false}' \
   >/dev/null
 
 echo "OK: smoke tests passed"
