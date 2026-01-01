@@ -102,14 +102,14 @@ if [[ -z "${SCRIPT_PATH}" ]]; then
   exit 1
 fi
 
-EXTRA_ARGS=()
+declare -a EXTRA_ARGS=()
 if [[ ${REQUIRE_BACKEND} -eq 1 ]]; then
   EXTRA_ARGS+=("--require-backend")
 fi
 
 echo "Base URL: ${BASE_URL}"
 
-"${PYTHON_BIN}" "${SCRIPT_PATH}" --base-url "${BASE_URL}" --token "${TOKEN}" "${EXTRA_ARGS[@]}"
+"${PYTHON_BIN}" "${SCRIPT_PATH}" --base-url "${BASE_URL}" --token "${TOKEN}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 if [[ ${RUN_PYTEST} -eq 1 ]]; then
   if [[ ! -d "/var/lib/gateway/app" ]]; then
