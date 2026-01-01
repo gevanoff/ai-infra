@@ -66,10 +66,11 @@ LATEST_PATH="${RUNTIME_ROOT}/data/releases/latest.json"
 
 sudo mkdir -p "${OUT_DIR}"
 sudo chown -R gateway:staff "${RUNTIME_ROOT}/data/releases" || true
+sudo chmod -R u+rwX,g+rX,o-rwx "${RUNTIME_ROOT}/data/releases" || true
 
 echo "Freezing release manifest to ${OUT_PATH}"
 
-"${PYTHON_BIN}" "${SCRIPT_PATH}" \
+sudo -u gateway -H "${PYTHON_BIN}" "${SCRIPT_PATH}" \
   --base-url "${BASE_URL}" \
   --token "${TOKEN}" \
   --ollama-base-url "${OLLAMA_BASE_URL}" \
