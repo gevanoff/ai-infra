@@ -78,6 +78,30 @@ Example env file: `services/gateway/env/gateway.env.example`
 
 You must set `GATEWAY_BEARER_TOKEN` to a secret value in `/var/lib/gateway/app/.env`.
 
+### Images (text-to-image via external image server)
+
+Gateway can optionally expose `POST /v1/images/generations` (bearer-protected) by proxying to an external image server.
+
+Env vars (in `/var/lib/gateway/app/.env`):
+
+- `IMAGES_BACKEND=mock|http_a1111|http_openai_images` (default `mock` returns a placeholder SVG)
+- `IMAGES_HTTP_BASE_URL=http://127.0.0.1:7860` (A1111 default) or `http://127.0.0.1:18181` (Nexa default)
+- `IMAGES_HTTP_TIMEOUT_SEC=120`
+- `IMAGES_A1111_STEPS=20`
+- `IMAGES_MAX_PIXELS=2000000`
+- `IMAGES_OPENAI_MODEL=NexaAI/sdxl-turbo` (required when `IMAGES_BACKEND=http_openai_images` unless clients pass `model`)
+
+Automatic1111 requirements (when `IMAGES_BACKEND=http_a1111`):
+
+- Run an A1111 server as a separate process (ideally on the same host).
+- Start A1111 with `--api` so `/sdapi/v1/txt2img` is available.
+- A1111 commonly has no auth; keep it on localhost or protect it with firewall/SSH.
+
+Nexa / OpenAI-style server requirements (when `IMAGES_BACKEND=http_openai_images`):
+
+- Run a server that exposes `POST /v1/images/generations`.
+- Ensure it returns `response_format=b64_json` (gateway requests that).
+
 Optional: multi-token auth
 
 - `GATEWAY_BEARER_TOKENS=tok1,tok2,...` (comma-separated). If set, any listed token is accepted.

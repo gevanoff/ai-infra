@@ -15,16 +15,6 @@ if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
 fi
 
 require_cmd launchctl
-require_cmd plutil
 
-HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "${HERE}/../.." && pwd)"
-
-echo "Installing all services..." >&2
-
-"${ROOT}/nexa/scripts/install.sh"
-"${ROOT}/ollama/scripts/install.sh"
-"${ROOT}/mlx/scripts/install.sh"
-"${ROOT}/gateway/scripts/install.sh"
-
-echo "Done." >&2
+LABEL="com.nexa.image.server"
+sudo launchctl print system/"$LABEL" | sed -n '1,220p'

@@ -19,6 +19,9 @@ require_cmd launchctl
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "${HERE}/../.." && pwd)"
 
+echo "==== nexa ===="
+"${ROOT}/nexa/scripts/status.sh"
+
 echo "==== ollama ===="
 "${ROOT}/ollama/scripts/status.sh"
 

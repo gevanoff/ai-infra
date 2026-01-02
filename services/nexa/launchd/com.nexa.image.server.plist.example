@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.nexa.image.server</string>
+
+    <!-- Run as a dedicated service account (recommended). -->
+    <key>UserName</key>
+    <string>nexa</string>
+
+    <!-- Runtime working directory (logs/cache/etc should live outside any user home). -->
+    <key>WorkingDirectory</key>
+    <string>/var/lib/nexa</string>
+
+    <!--
+      Nexa command:
+      - Keep it bound to localhost for safety.
+      - The exact subcommand/flags depend on how you run Nexa today.
+
+      IMPORTANT: Edit the final string to match your known-working command.
+
+      Example pattern (matches Nexa's CLI shape):
+        nexa serve --host 127.0.0.1:18181 --keepalive 600
+
+      This plist uses zsh so PATH resolution works across Homebrew installs.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/zsh</string>
+      <string>-lc</string>
+      <string>exec nexa serve --host 127.0.0.1:18181 --keepalive 600</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>/var/lib/nexa</string>
+
+      <!-- Ensure common Homebrew paths are available under launchd. -->
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+
+      <!-- Set to 1 to get unbuffered logs for easier debugging. -->
+      <key>PYTHONUNBUFFERED</key>
+      <string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/nexa/nexa.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/nexa/nexa.err.log</string>
+  </dict>
+</plist>

@@ -21,6 +21,7 @@ ROOT="$(cd "${HERE}/../.." && pwd)"
 
 echo "Restarting all services..." >&2
 
+"${ROOT}/nexa/scripts/restart.sh"
 "${ROOT}/ollama/scripts/restart.sh"
 "${ROOT}/mlx/scripts/restart.sh"
 "${ROOT}/gateway/scripts/restart.sh"
