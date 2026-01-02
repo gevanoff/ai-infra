@@ -21,17 +21,10 @@ list_contains_model() {
     fi
   }
 
-  # Best-effort: try common list commands. If we can't list, return 1 (unknown).
-  if nexa_as_user models list >/dev/null 2>&1; then
-    nexa_as_user models list 2>/dev/null | grep -Fq -- "${MODEL}" && return 0
-  fi
-
+  # Best-effort: use the known-good command for this CLI.
+  # If we can't list, return 1 (unknown) so we fall back to pulling.
   if nexa_as_user list >/dev/null 2>&1; then
     nexa_as_user list 2>/dev/null | grep -Fq -- "${MODEL}" && return 0
-  fi
-
-  if nexa_as_user ls >/dev/null 2>&1; then
-    nexa_as_user ls 2>/dev/null | grep -Fq -- "${MODEL}" && return 0
   fi
 
   return 1
