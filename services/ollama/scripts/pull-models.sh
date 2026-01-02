@@ -14,6 +14,12 @@ if [[ ! -f "${MANIFEST}" ]]; then
 	exit 1
 fi
 
-grep -vE '^\s*#|^\s*$' "${MANIFEST}" | while read -r m; do
-	ollama pull "$m"
-done
+while IFS= read -r line; do
+	line="${line%%#*}"
+	line="${line#"${line%%[![:space:]]*}"}"
+	line="${line%"${line##*[![:space:]]}"}"
+	if [[ -z "${line}" ]]; then
+		continue
+	fi
+	ollama pull "${line}"
+done < "${MANIFEST}"
