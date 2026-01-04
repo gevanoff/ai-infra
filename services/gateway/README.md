@@ -78,6 +78,14 @@ Example env file: `services/gateway/env/gateway.env.example`
 
 You must set `GATEWAY_BEARER_TOKEN` to a secret value in `/var/lib/gateway/app/.env`.
 
+### Security notes (recommended defaults)
+
+The example env file is intentionally conservative:
+
+- Bind to loopback by default (`GATEWAY_HOST=127.0.0.1`). If you change to `0.0.0.0` for LAN access, also set `IP_ALLOWLIST` to trusted IPs/CIDRs and rely on firewall rules. Do not expose the gateway directly to the public Internet.
+- Keep high-privilege tools disabled by default (`TOOLS_ALLOW_SHELL=false`, `TOOLS_ALLOW_FS=false`). Only enable them when you need them, and prefer narrow allowlisting (global `TOOLS_ALLOWLIST` and/or per-token `GATEWAY_TOKEN_POLICIES_JSON` with `tools_allowlist`).
+- Treat gateway logs as potentially sensitive. Request logs and tool logs can include prompts, tool arguments, and outputs; keep `/var/lib/gateway/data` private and rotate/clean logs.
+
 ### Images (text-to-image via external image server)
 
 Gateway can optionally expose `POST /v1/images/generations` (bearer-protected) by proxying to an external image server.
