@@ -1,0 +1,34 @@
+[Unit]
+Description=InvokeAI Image Generation Service
+Documentation=https://invoke-ai.github.io/InvokeAI/
+After=network.target
+
+[Service]
+Type=simple
+User=invokeai
+Group=invokeai
+WorkingDirectory=/var/lib/invokeai
+
+# Environment
+Environment="PATH=/var/lib/invokeai/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Start command
+ExecStart=/var/lib/invokeai/venv/bin/invokeai-web --root /var/lib/invokeai
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/invokeai
+
+# Resource limits (optional)
+# LimitNOFILE=65536
+# MemoryMax=32G
+
+[Install]
+WantedBy=multi-user.target

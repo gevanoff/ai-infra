@@ -1,0 +1,39 @@
+# InvokeAI Configuration
+#
+# Copy this to /var/lib/invokeai/invokeai.yaml and customize as needed.
+#
+# Documentation: https://invoke-ai.github.io/InvokeAI/
+
+InvokeAI:
+  Web Server:
+    # Listen on all interfaces (nginx will proxy from 7860)
+    host: 0.0.0.0
+    port: 9090
+    
+    # CORS settings (gateway needs access)
+    allow_origins:
+      - "http://ada2.local:8800"
+      - "http://127.0.0.1:8800"
+    
+  Generation:
+    # Use float16 for better performance on RTX GPUs
+    precision: float16
+    
+    # Disable sequential guidance for faster generation
+    sequential_guidance: false
+    
+  Model Cache:
+    # RAM cache for model loading (in GB)
+    ram: 16.0
+    
+    # VRAM cache for active models (in GB)
+    # RTX 6000 Ada has 46GB, leave some headroom
+    vram: 40.0
+    
+  Paths:
+    # Default paths (relative to /var/lib/invokeai)
+    models_dir: models
+    outputs_dir: outputs
+    
+  # Logging
+  log_level: info

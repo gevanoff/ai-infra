@@ -1,0 +1,49 @@
+# AI Infrastructure Host Inventory
+#
+# Defines which services run on which hosts.
+# Used by ai-infra/services/all/scripts/* for deployment and health checks.
+
+hosts:
+  ai2:
+    hostname: ai2.local
+    os: macos
+    description: MacBook Pro M4 Max - Gateway + MLX
+    roles:
+      - gateway
+      - mlx
+    
+  ai1:
+    hostname: ai1.local
+    os: ubuntu
+    description: RTX 5060 Ti (16GB) - Fast inference
+    roles:
+      - ollama
+      
+  ada2:
+    hostname: ada2.local
+    os: ubuntu
+    description: RTX 6000 Ada (46GB) - Image generation
+    roles:
+      - invokeai
+
+# Service endpoints (for health checks)
+services:
+  gateway:
+    port: 8800
+    healthz: /health
+    requires_auth: true
+    
+  mlx:
+    port: 10240
+    healthz: /v1/models
+    requires_auth: false
+    
+  ollama:
+    port: 11434
+    healthz: /api/tags
+    requires_auth: false
+    
+  invokeai:
+    port: 7860
+    healthz: /healthz
+    requires_auth: false
