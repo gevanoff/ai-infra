@@ -34,6 +34,13 @@ if ! command -v nginx &> /dev/null; then
   apt install -y nginx
 fi
 
+if ! command -v yq &> /dev/null; then
+  echo "Installing yq..."
+  wget -qO /usr/local/bin/yq \
+    https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+  chmod +x /usr/local/bin/yq
+fi
+
 echo "✓ Prerequisites satisfied"
 echo ""
 

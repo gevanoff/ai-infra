@@ -21,11 +21,18 @@ if [ ! -f "$HOSTS_FILE" ]; then
   exit 1
 fi
 
-# Check if yq is available
+# Check if yq is available, install if missing on Linux
 if ! command -v yq &> /dev/null; then
-  echo "Error: yq is required but not installed."
-  echo "Install with: brew install yq (macOS) or sudo apt install yq (Ubuntu)"
-  exit 1
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Installing yq..."
+    sudo wget -qO /usr/local/bin/yq \
+      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+    sudo chmod +x /usr/local/bin/yq
+  else
+    echo "Error: yq is required but not installed."
+    echo "Install with: brew install yq (macOS)"
+    exit 1
+  fi
 fi
 
 # Get all host names from hosts.yaml
