@@ -17,8 +17,15 @@ if [ -z "$HOST" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-HOSTS_FILE="$REPO_ROOT/hosts.yaml"
+
+# Local repo layout assumptions:
+#   <workspace_root>/ai-infra
+#   <workspace_root>/gateway
+AI_INFRA_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+WORKSPACE_ROOT="$(cd "$AI_INFRA_ROOT/.." && pwd)"
+GATEWAY_ROOT="${WORKSPACE_ROOT}/gateway"
+
+HOSTS_FILE="$AI_INFRA_ROOT/hosts.yaml"
 
 if [ ! -f "$HOSTS_FILE" ]; then
   echo "Error: hosts.yaml not found at $HOSTS_FILE"
@@ -60,7 +67,7 @@ echo ""
 for role in $ROLES; do
   echo ">>> Deploying $role..."
   
-  SERVICE_DIR="$REPO_ROOT/services/$role"
+  SERVICE_DIR="$AI_INFRA_ROOT/services/$role"
   DEPLOY_SCRIPT="$SERVICE_DIR/scripts/deploy.sh"
   
   if [ ! -f "$DEPLOY_SCRIPT" ]; then
@@ -70,7 +77,6 @@ for role in $ROLES; do
   
   # Check if we're deploying to localhost or remote
   CURRENT_HOST=$(hostname)
-  OS=$(yq ".hosts.$HOST.os" "$HOSTS_FILE")
   
   if [ "$CURRENT_HOST" == "$HOST" ] || [ "$CURRENT_HOST" == "$HOSTNAME" ]; then
     # Local deployment
@@ -80,17 +86,43 @@ for role in $ROLES; do
   else
     # Remote deployment via SSH
     echo "Deploying remotely to $HOSTNAME..."
-    
-    # First sync the repo (if not already there)
-    ssh "$HOSTNAME" "mkdir -p /opt/ai-infra" || true
+
+    # Remote repo layout assumptions mirror local:
+    #   <remote_base>/ai-infra
+    #   <remote_base>/gateway
+    # Override with AI_INFRA_REMOTE_BASE, defaults to ~/ai
+    REMOTE_BASE="${AI_INFRA_REMOTE_BASE:-~/ai}"
+    REMOTE_AI_INFRA_ROOT="${REMOTE_BASE%/}/ai-infra"
+    REMOTE_GATEWAY_ROOT="${REMOTE_BASE%/}/gateway"
+
+    # If deploying gateway, ensure we have a sibling gateway checkout locally so it can be synced.
+    if [ "$role" == "gateway" ] && [ ! -f "$GATEWAY_ROOT/app/main.py" ]; then
+      echo "Error: gateway repo not found next to ai-infra at: $GATEWAY_ROOT" >&2
+      echo "Hint: clone gateway as a sibling of ai-infra, or set GATEWAY_SRC_DIR when running the gateway deploy script locally." >&2
+      exit 1
+    fi
+
+    # Ensure remote base exists
+    ssh "$HOSTNAME" "mkdir -p ${REMOTE_BASE}" || true
+
+    # Sync ai-infra
     rsync -az --delete \
       --exclude='.git' \
       --exclude='*.pyc' \
       --exclude='__pycache__' \
-      "$REPO_ROOT/" "$HOSTNAME:/opt/ai-infra/"
-    
+      "$AI_INFRA_ROOT/" "$HOSTNAME:${REMOTE_AI_INFRA_ROOT}/"
+
+    # Sync gateway if present (needed for remote gateway deployments; harmless otherwise)
+    if [ -d "$GATEWAY_ROOT" ]; then
+      rsync -az --delete \
+        --exclude='.git' \
+        --exclude='*.pyc' \
+        --exclude='__pycache__' \
+        "$GATEWAY_ROOT/" "$HOSTNAME:${REMOTE_GATEWAY_ROOT}/"
+    fi
+
     # Then run the deploy script on the remote host
-    ssh "$HOSTNAME" "cd /opt/ai-infra/services/$role && ./scripts/deploy.sh"
+    ssh "$HOSTNAME" "cd ${REMOTE_AI_INFRA_ROOT}/services/$role && ./scripts/deploy.sh"
   fi
   
   echo "✓ $role deployed"
