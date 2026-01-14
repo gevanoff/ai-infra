@@ -58,10 +58,12 @@ fi
 
 # Update nginx config
 if [ -f "$SERVICE_DIR/nginx/invokeai.conf" ]; then
+  $SUDO mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
   if ! cmp -s "$SERVICE_DIR/nginx/invokeai.conf" /etc/nginx/sites-available/invokeai; then
     echo "  Updating nginx config..."
     $SUDO cp "$SERVICE_DIR/nginx/invokeai.conf" /etc/nginx/sites-available/invokeai
     $SUDO ln -sf /etc/nginx/sites-available/invokeai /etc/nginx/sites-enabled/invokeai
+    $SUDO ln -sf /etc/nginx/sites-available/invokeai /etc/nginx/sites-enabled/invokeai.conf
     
     if $SUDO nginx -t 2>/dev/null; then
       $SUDO systemctl reload nginx

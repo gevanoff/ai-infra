@@ -97,8 +97,10 @@ echo ""
 
 # Install nginx config
 echo "Installing nginx proxy..."
+mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 cp "$SCRIPT_DIR/../nginx/invokeai.conf" /etc/nginx/sites-available/invokeai
 ln -sf /etc/nginx/sites-available/invokeai /etc/nginx/sites-enabled/invokeai
+ln -sf /etc/nginx/sites-available/invokeai /etc/nginx/sites-enabled/invokeai.conf
 
 # Remove default nginx site if it exists
 rm -f /etc/nginx/sites-enabled/default
