@@ -5,7 +5,7 @@
 
 hosts:
   ai2:
-    hostname: ai2.local
+    hostname: ai2
     os: macos
     description: MacBook Pro M4 Max - Gateway + MLX
     roles:
@@ -13,14 +13,14 @@ hosts:
       - mlx
     
   ai1:
-    hostname: ai1.local
+    hostname: ai1
     os: ubuntu
     description: RTX 5060 Ti (16GB) - Fast inference
     roles:
       - ollama
       
   ada2:
-    hostname: ada2.local
+    hostname: ada2
     os: ubuntu
     description: RTX 6000 Ada (46GB) - Image generation
     roles:
