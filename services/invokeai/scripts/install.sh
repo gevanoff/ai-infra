@@ -91,6 +91,9 @@ echo ""
 echo "Installing OpenAI Images Shim..."
 mkdir -p /var/lib/invokeai/openai_images_shim
 cp "$SCRIPT_DIR/../shim/openai_images_shim.py" /var/lib/invokeai/openai_images_shim/openai_images_shim.py
+if [ -f "$SCRIPT_DIR/../shim/graph_template.json" ]; then
+  cp "$SCRIPT_DIR/../shim/graph_template.json" /var/lib/invokeai/openai_images_shim/graph_template.json
+fi
 chown -R invokeai:invokeai /var/lib/invokeai/openai_images_shim
 echo "✓ Shim installed at /var/lib/invokeai/openai_images_shim"
 echo ""

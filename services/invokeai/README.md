@@ -126,6 +126,47 @@ Expected shape:
 {"created": 1234567890, "data": [{"b64_json": "...base64 png..."}]}
 ```
 
+## Enable Real Mode (InvokeAI Queue)
+
+Once stub mode is working, switch the shim to `SHIM_MODE=invokeai_queue` so it enqueues a real InvokeAI workflow and returns the generated image as `b64_json`.
+
+This repo deploys a default template to:
+
+```bash
+/var/lib/invokeai/openai_images_shim/graph_template.json
+```
+
+Enable via a systemd override on ada2:
+
+```bash
+sudo systemctl edit invokeai-openai-images-shim
+```
+
+Add:
+
+```ini
+[Service]
+Environment="SHIM_MODE=invokeai_queue"
+Environment="SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json"
+# Output node id for the default SDXL template (the l2i node)
+Environment="SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48"
+```
+
+Then restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart invokeai-openai-images-shim
+```
+
+Smoke-test real generation (this may take 10–60s):
+
+```bash
+curl -sS -X POST http://127.0.0.1:7860/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"real mode test","response_format":"b64_json","size":"1024x1024","seed":1234,"steps":20,"cfg_scale":6}'
+```
+
 ## Monitoring
 
 ### GPU Usage

@@ -69,6 +69,19 @@ if [ -f "$SERVICE_DIR/shim/openai_images_shim.py" ]; then
   fi
 fi
 
+# Update optional graph template
+if [ -f "$SERVICE_DIR/shim/graph_template.json" ]; then
+  $SUDO mkdir -p /var/lib/invokeai/openai_images_shim
+  if [ ! -f /var/lib/invokeai/openai_images_shim/graph_template.json ] || ! cmp -s "$SERVICE_DIR/shim/graph_template.json" /var/lib/invokeai/openai_images_shim/graph_template.json; then
+    echo "  Updating OpenAI images shim graph template..."
+    $SUDO cp "$SERVICE_DIR/shim/graph_template.json" /var/lib/invokeai/openai_images_shim/graph_template.json
+    $SUDO chown invokeai:invokeai /var/lib/invokeai/openai_images_shim/graph_template.json
+    echo "  ✓ Shim graph template updated"
+  else
+    echo "  ✓ Shim graph template unchanged"
+  fi
+fi
+
 # Update OpenAI images shim systemd service
 if [ -f "$SERVICE_DIR/systemd/invokeai-openai-images-shim.service" ]; then
   if [ ! -f /etc/systemd/system/invokeai-openai-images-shim.service ] || ! cmp -s "$SERVICE_DIR/systemd/invokeai-openai-images-shim.service" /etc/systemd/system/invokeai-openai-images-shim.service; then

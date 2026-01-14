@@ -12,7 +12,13 @@ Graph templates
 - Provide SHIM_GRAPH_TEMPLATE_PATH pointing to a JSON file that is a valid InvokeAI Graph.
 - Provide SHIM_OUTPUT_NODE_ID identifying the output node id in that graph.
 - Template supports simple placeholders in any string field:
-  - {{prompt}}, {{width}}, {{height}}, {{seed}}
+    - {{prompt}}, {{negative_prompt}}
+
+Notes
+- Many InvokeAI “workflow export” JSON files store width/height/seed as numbers, not strings.
+    In invokeai_queue mode this shim also applies best-effort overrides to common node types
+    (noise, rand_int, sdxl_compel_prompt, denoise_latents) so you can use exported workflows
+    as templates without needing numeric placeholders.
 """
 
 from __future__ import annotations
@@ -42,6 +48,10 @@ class ImagesGenerationsRequest(BaseModel):
     model: Optional[str] = None
     user: Optional[str] = None
     seed: Optional[int] = None
+    negative_prompt: Optional[str] = None
+    steps: Optional[int] = None
+    cfg_scale: Optional[float] = None
+    scheduler: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -143,11 +153,12 @@ def _load_graph_from_template(path: str, *, prompt: str, width: int, height: int
 
     mapping = {
         "prompt": prompt,
-        "width": str(width),
-        "height": str(height),
-        "seed": str(seed if seed is not None else 0),
+        "negative_prompt": "",
     }
-    return _deep_replace_placeholders(graph, mapping)
+
+    out = _deep_replace_placeholders(graph, mapping)
+    _apply_invokeai_workflow_overrides(out, prompt=prompt, negative_prompt="", width=width, height=height, seed=seed)
+    return out
 
 
 def _detect_output_node_id(graph: dict) -> Optional[str]:
@@ -156,7 +167,111 @@ def _detect_output_node_id(graph: dict) -> Optional[str]:
         for node_id, node in nodes.items():
             if isinstance(node, dict) and node.get("type") in ("image_output", "canvas_output"):
                 return str(node_id)
+        return None
+
+    # Workflow export format: nodes is a list of objects with node['id'] and node['data'].
+    if isinstance(nodes, list):
+        # Prefer the final latents->image node when present.
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            data = node.get("data")
+            if not isinstance(data, dict):
+                continue
+            if data.get("type") == "l2i" and data.get("isIntermediate") is False:
+                node_id = node.get("id")
+                return str(node_id) if isinstance(node_id, str) and node_id else None
+
+        # Fallback: any explicit output node type.
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            data = node.get("data")
+            if not isinstance(data, dict):
+                continue
+            if data.get("type") in ("image_output", "canvas_output"):
+                node_id = node.get("id")
+                return str(node_id) if isinstance(node_id, str) and node_id else None
+
     return None
+
+
+def _apply_invokeai_workflow_overrides(
+    graph: dict,
+    *,
+    prompt: str,
+    negative_prompt: str,
+    width: int,
+    height: int,
+    seed: Optional[int],
+    steps: Optional[int] = None,
+    cfg_scale: Optional[float] = None,
+    scheduler: Optional[str] = None,
+) -> None:
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list):
+        return
+
+    def _set_input_value(inputs: Any, key: str, value: Any) -> None:
+        if not isinstance(inputs, dict):
+            return
+        obj = inputs.get(key)
+        if isinstance(obj, dict) and "value" in obj:
+            obj["value"] = value
+
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        data = node.get("data")
+        if not isinstance(data, dict):
+            continue
+
+        ntype = data.get("type")
+        label = (data.get("label") or "").strip()
+        inputs = data.get("inputs")
+
+        # Common prompt fields in the default SDXL workflow exports.
+        if ntype == "string" and label in ("Positive Prompt", "Negative Prompt"):
+            val_obj = inputs.get("value") if isinstance(inputs, dict) else None
+            if isinstance(val_obj, dict) and "value" in val_obj:
+                if label == "Positive Prompt":
+                    val_obj["value"] = prompt
+                else:
+                    val_obj["value"] = negative_prompt or ""
+            continue
+
+        # Keep SDXL compel nodes consistent with the requested output size.
+        if ntype == "sdxl_compel_prompt":
+            _set_input_value(inputs, "original_width", int(width))
+            _set_input_value(inputs, "original_height", int(height))
+            _set_input_value(inputs, "target_width", int(width))
+            _set_input_value(inputs, "target_height", int(height))
+            continue
+
+        # The latent noise node carries width/height.
+        if ntype == "noise":
+            _set_input_value(inputs, "width", int(width))
+            _set_input_value(inputs, "height", int(height))
+            # seed is often wired from a rand_int node; leave as-is unless the graph uses the literal input.
+            if seed is not None:
+                _set_input_value(inputs, "seed", int(seed))
+            continue
+
+        # The default workflow uses a rand_int node to generate a seed.
+        if ntype == "rand_int" and label == "Random Seed" and seed is not None:
+            _set_input_value(inputs, "low", int(seed))
+            _set_input_value(inputs, "high", int(seed))
+            continue
+
+        # Basic quality knobs when present.
+        if ntype == "denoise_latents":
+            if steps is not None:
+                _set_input_value(inputs, "steps", int(steps))
+            if cfg_scale is not None:
+                _set_input_value(inputs, "cfg_scale", float(cfg_scale))
+            if scheduler:
+                _set_input_value(inputs, "scheduler", str(scheduler))
+            continue
 
 
 def _extract_image_name_from_queue_item(queue_item: dict, output_node_id: str) -> str:
@@ -202,6 +317,17 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
     width, height = _parse_size(req.size)
 
     graph = _load_graph_from_template(cfg.graph_template_path, prompt=req.prompt, width=width, height=height, seed=req.seed)
+    _apply_invokeai_workflow_overrides(
+        graph,
+        prompt=req.prompt,
+        negative_prompt=(req.negative_prompt or "").strip(),
+        width=width,
+        height=height,
+        seed=req.seed,
+        steps=req.steps,
+        cfg_scale=req.cfg_scale,
+        scheduler=(req.scheduler or "").strip() or None,
+    )
 
     output_node_id = (cfg.output_node_id or "").strip() or _detect_output_node_id(graph)
     if not output_node_id:
