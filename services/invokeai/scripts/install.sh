@@ -87,11 +87,21 @@ chown invokeai:invokeai /var/lib/invokeai/invokeai.yaml
 echo "✓ Config created at /var/lib/invokeai/invokeai.yaml"
 echo ""
 
+# Install OpenAI images shim
+echo "Installing OpenAI Images Shim..."
+mkdir -p /var/lib/invokeai/openai_images_shim
+cp "$SCRIPT_DIR/../shim/openai_images_shim.py" /var/lib/invokeai/openai_images_shim/openai_images_shim.py
+chown -R invokeai:invokeai /var/lib/invokeai/openai_images_shim
+echo "✓ Shim installed at /var/lib/invokeai/openai_images_shim"
+echo ""
+
 # Install systemd service
 echo "Installing systemd service..."
 cp "$SCRIPT_DIR/../systemd/invokeai.service" /etc/systemd/system/
+cp "$SCRIPT_DIR/../systemd/invokeai-openai-images-shim.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable invokeai
+systemctl enable invokeai-openai-images-shim
 echo "✓ Service installed"
 echo ""
 
@@ -118,6 +128,7 @@ echo ""
 # Start InvokeAI
 echo "Starting InvokeAI service..."
 systemctl start invokeai
+systemctl start invokeai-openai-images-shim
 sleep 5
 
 if systemctl is-active --quiet invokeai; then
@@ -125,6 +136,14 @@ if systemctl is-active --quiet invokeai; then
 else
   echo "✗ InvokeAI failed to start"
   echo "Check logs: sudo journalctl -u invokeai -n 50"
+  exit 1
+fi
+
+if systemctl is-active --quiet invokeai-openai-images-shim; then
+  echo "✓ OpenAI Images Shim is running"
+else
+  echo "✗ OpenAI Images Shim failed to start"
+  echo "Check logs: sudo journalctl -u invokeai-openai-images-shim -n 50"
   exit 1
 fi
 echo ""

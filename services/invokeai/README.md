@@ -58,11 +58,18 @@ sudo systemctl start invokeai
 sudo systemctl stop invokeai
 sudo systemctl restart invokeai
 
+# Shim (OpenAI Images compatibility)
+sudo systemctl start invokeai-openai-images-shim
+sudo systemctl stop invokeai-openai-images-shim
+sudo systemctl restart invokeai-openai-images-shim
+
 # View status
 sudo systemctl status invokeai
+sudo systemctl status invokeai-openai-images-shim
 
 # View logs
 sudo journalctl -u invokeai -f
+sudo journalctl -u invokeai-openai-images-shim -f
 
 # Enable/disable autostart
 sudo systemctl enable invokeai
@@ -72,7 +79,7 @@ sudo systemctl disable invokeai
 ## Health Endpoints
 
 - `http://ada2.local:7860/healthz` - Liveness check (always returns 200)
-- `http://ada2.local:7860/readyz` - Readiness check (proxies to InvokeAI API)
+- `http://ada2.local:7860/readyz` - Readiness check (proxies to the shim, which checks InvokeAI)
 
 ## Web UI
 
@@ -83,10 +90,40 @@ Access at `http://ada2.local:7860` to:
 
 ## API Endpoint
 
-OpenAI-compatible endpoint for gateway integration:
+OpenAI-compatible endpoint for gateway integration (provided by the shim):
 
 ```
-POST http://ada2.local:7860/api/v1/images/generations
+POST http://ada2.local:7860/v1/images/generations
+```
+
+InvokeAI native API (not OpenAI-compatible) is available under:
+
+```
+http://ada2.local:7860/api/v1/
+```
+
+## Quick Validation (Shim Stub Mode)
+
+The shim systemd unit defaults to `SHIM_MODE=stub`, which returns a tiny PNG as `b64_json`. This validates nginx routing + gateway contract without requiring an InvokeAI workflow.
+
+Readiness (nginx -> shim -> InvokeAI):
+
+```bash
+curl -sS http://ada2.local:7860/readyz
+```
+
+OpenAI images contract smoke test (must return `data[0].b64_json`):
+
+```bash
+curl -sS -X POST http://ada2.local:7860/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"shim smoke test","response_format":"b64_json"}'
+```
+
+Expected shape:
+
+```json
+{"created": 1234567890, "data": [{"b64_json": "...base64 png..."}]}
 ```
 
 ## Monitoring

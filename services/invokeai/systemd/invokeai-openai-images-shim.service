@@ -1,0 +1,33 @@
+[Unit]
+Description=InvokeAI OpenAI Images Shim
+After=network.target invokeai.service
+Requires=invokeai.service
+
+[Service]
+Type=simple
+User=invokeai
+Group=invokeai
+WorkingDirectory=/var/lib/invokeai/openai_images_shim
+
+Environment="PATH=/var/lib/invokeai/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="SHIM_PORT=9091"
+Environment="SHIM_MODE=stub"
+Environment="INVOKEAI_BASE_URL=http://127.0.0.1:9090"
+Environment="INVOKEAI_QUEUE_ID=default"
+# For SHIM_MODE=invokeai_queue:
+# Environment="SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json"
+# Environment="SHIM_OUTPUT_NODE_ID=output"
+
+ExecStart=/var/lib/invokeai/venv/bin/python -m uvicorn openai_images_shim:app --host 127.0.0.1 --port 9091
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/invokeai
+
+[Install]
+WantedBy=multi-user.target
