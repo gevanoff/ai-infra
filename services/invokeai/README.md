@@ -14,7 +14,7 @@ InvokeAI running on ada2 (RTX 6000 Ada, 46GB VRAM) for SDXL image generation.
 Run as root or with sudo:
 
 ```bash
-cd /opt/ai-infra/services/invokeai
+cd ~/ai/ai-infra/services/invokeai
 ./scripts/install.sh
 ```
 
