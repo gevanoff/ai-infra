@@ -40,7 +40,8 @@ from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
-logger = logging.getLogger("openai_images_shim")
+logger = logging.getLogger("uvicorn.error")
+_SHIM_BUILD = "2026-01-15a"
 
 
 class ImagesGenerationsRequest(BaseModel):
@@ -83,6 +84,19 @@ def _get_config() -> ShimConfig:
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
         debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
+    )
+
+
+@app.on_event("startup")
+def _log_startup() -> None:
+    cfg = _get_config()
+    logger.info(
+        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s",
+        _SHIM_BUILD,
+        cfg.mode,
+        cfg.graph_template_path,
+        cfg.output_node_id,
+        cfg.debug_graph_path,
     )
 
 
