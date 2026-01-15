@@ -174,12 +174,9 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
             break
 
     if not candidates:
-        if last_error is not None:
-            raise HTTPException(
-                status_code=502,
-                detail=f"InvokeAI model list unavailable (tried: {', '.join(models_urls)}): {last_error.detail}",
-            )
-        raise HTTPException(status_code=502, detail="InvokeAI model list returned no models")
+        # If model listing is unavailable, fall back to a minimal model identifier.
+        # Some InvokeAI deployments do not expose /api/v1/models.
+        return {"key": model, "name": model}
 
     def _matches(item: dict, needle: str) -> bool:
         for k in ("key", "name", "id", "model"):
