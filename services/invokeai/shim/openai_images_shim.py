@@ -9,7 +9,8 @@ Modes
 - SHIM_MODE=invokeai_queue: enqueues a user-provided InvokeAI graph template and returns the resulting image.
 
 Graph templates
-- Provide SHIM_GRAPH_TEMPLATE_PATH pointing to a JSON file that is a valid InvokeAI Graph.
+- Provide SHIM_GRAPH_TEMPLATE_PATH pointing to a JSON file.
+    - This may be either an InvokeAI API Graph, or an InvokeAI "workflow export" JSON.
 - Provide SHIM_OUTPUT_NODE_ID identifying the output node id in that graph.
 - Template supports simple placeholders in any string field:
     - {{prompt}}, {{negative_prompt}}
@@ -274,6 +275,101 @@ def _apply_invokeai_workflow_overrides(
             continue
 
 
+def _workflow_export_to_api_graph(workflow_export: dict) -> dict:
+    """Convert an InvokeAI workflow export (ReactFlow-ish) to an API Graph.
+
+    InvokeAI's queue API expects:
+      - graph.nodes: dict[node_id -> invocation]
+      - graph.edges: list[{source:{node_id,field}, destination:{node_id,field}}]
+
+    Workflow exports contain:
+      - nodes: list[{id, data:{id,type,version,inputs:{field:{...,value:...}}}}]
+      - edges: list[{source,target,sourceHandle,targetHandle,...}]
+    """
+    nodes_in = workflow_export.get("nodes")
+    edges_in = workflow_export.get("edges")
+    if not isinstance(nodes_in, list) or not isinstance(edges_in, list):
+        raise HTTPException(status_code=500, detail="Workflow export is missing nodes/edges lists")
+
+    nodes_out: Dict[str, Any] = {}
+    for node in nodes_in:
+        if not isinstance(node, dict):
+            continue
+        node_id = node.get("id")
+        data = node.get("data")
+        if not isinstance(node_id, str) or not node_id:
+            continue
+        if not isinstance(data, dict):
+            continue
+
+        inv_type = data.get("type")
+        if not isinstance(inv_type, str) or not inv_type:
+            continue
+
+        # Workflow export inputs include UI metadata; the API expects raw values.
+        inputs_in = data.get("inputs")
+        inputs_out: Dict[str, Any] = {}
+        if isinstance(inputs_in, dict):
+            for k, v in inputs_in.items():
+                if not isinstance(k, str) or not k:
+                    continue
+                if isinstance(v, dict) and "value" in v:
+                    inputs_out[k] = v.get("value")
+
+        inv: Dict[str, Any] = {
+            "id": node_id,
+            "type": inv_type,
+            "inputs": inputs_out,
+        }
+        version = data.get("version")
+        if isinstance(version, str) and version:
+            inv["version"] = version
+
+        nodes_out[node_id] = inv
+
+    edges_out: List[Dict[str, Any]] = []
+    for e in edges_in:
+        if not isinstance(e, dict):
+            continue
+        source = e.get("source")
+        target = e.get("target")
+        source_handle = e.get("sourceHandle")
+        target_handle = e.get("targetHandle")
+
+        # Ignore non-data edges (e.g. collapsed edges) that lack handles.
+        if not (
+            isinstance(source, str)
+            and isinstance(target, str)
+            and isinstance(source_handle, str)
+            and isinstance(target_handle, str)
+            and source
+            and target
+            and source_handle
+            and target_handle
+        ):
+            continue
+
+        edges_out.append(
+            {
+                "source": {"node_id": source, "field": source_handle},
+                "destination": {"node_id": target, "field": target_handle},
+            }
+        )
+
+    return {"nodes": nodes_out, "edges": edges_out}
+
+
+def _ensure_invokeai_api_graph(graph: dict) -> dict:
+    """Return a Graph suitable for InvokeAI's queue API."""
+    nodes = graph.get("nodes")
+    edges = graph.get("edges")
+    if isinstance(nodes, dict) and isinstance(edges, list):
+        return graph
+    if isinstance(nodes, list) and isinstance(edges, list):
+        return _workflow_export_to_api_graph(graph)
+    raise HTTPException(status_code=500, detail="Graph template must be an InvokeAI API Graph or a workflow export")
+
+
 def _extract_image_name_from_queue_item(queue_item: dict, output_node_id: str) -> str:
     session = queue_item.get("session")
     if not isinstance(session, dict):
@@ -333,13 +429,15 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
     if not output_node_id:
         raise HTTPException(status_code=500, detail="SHIM_OUTPUT_NODE_ID not set and could not auto-detect output node")
 
+    graph_api = _ensure_invokeai_api_graph(graph)
+
     origin = f"openai-images-shim:{int(time.time() * 1000)}"
 
     enqueue_url = f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch"
     enqueue_body = {
         "prepend": True,
         "batch": {
-            "graph": graph,
+            "graph": graph_api,
             "origin": origin,
             "destination": "openai-images",
             "runs": 1,
