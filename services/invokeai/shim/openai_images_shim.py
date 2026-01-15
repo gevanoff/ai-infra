@@ -349,8 +349,15 @@ def _apply_invokeai_workflow_overrides(
             continue
 
         # Ensure the model loader has a concrete model value when provided.
-        if isinstance(model_info, dict) and ntype in ("sdxl_model_loader", "model_loader"):
-            _set_input_value(inputs, "model", model_info)
+        if ntype in ("sdxl_model_loader", "model_loader"):
+            if isinstance(model_info, dict):
+                _set_input_value(inputs, "model", model_info)
+            else:
+                model_field = inputs.get("model") if isinstance(inputs, dict) else None
+                if isinstance(model_field, dict) and "value" in model_field:
+                    value = model_field.get("value")
+                    if isinstance(value, dict) and "key" in value and "id" not in value:
+                        value["id"] = value["key"]
             continue
 
         # Basic quality knobs when present.
