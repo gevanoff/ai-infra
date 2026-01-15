@@ -66,6 +66,7 @@ class ShimConfig:
     graph_template_path: Optional[str]
     output_node_id: Optional[str]
     default_model: Optional[str]
+    debug_graph_path: Optional[str]
 
 
 def _get_config() -> ShimConfig:
@@ -79,6 +80,7 @@ def _get_config() -> ShimConfig:
         graph_template_path=os.getenv("SHIM_GRAPH_TEMPLATE_PATH"),
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
+        debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
     )
 
 
@@ -537,6 +539,29 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         raise HTTPException(status_code=500, detail="SHIM_OUTPUT_NODE_ID not set and could not auto-detect output node")
 
     graph_api = _ensure_invokeai_api_graph(graph)
+
+    if cfg.debug_graph_path:
+        try:
+            with open(cfg.debug_graph_path, "w", encoding="utf-8") as f:
+                json.dump(graph_api, f, indent=2)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to write SHIM_DEBUG_GRAPH_PATH: {e}")
+
+    # Preflight: ensure the model input is present for model loader nodes.
+    nodes_api = graph_api.get("nodes")
+    if isinstance(nodes_api, dict):
+        for node_id, node in nodes_api.items():
+            if not isinstance(node, dict):
+                continue
+            if node.get("type") not in ("sdxl_model_loader", "model_loader"):
+                continue
+            inputs = node.get("inputs")
+            model_value = inputs.get("model") if isinstance(inputs, dict) else None
+            if model_value is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Preflight missing model input in graph (node_id={node_id})",
+                )
 
     origin = f"openai-images-shim:{int(time.time() * 1000)}"
 
