@@ -14,7 +14,7 @@ Environment="SHIM_PORT=9091"
 Environment="SHIM_MODE=invokeai_queue"
 Environment="INVOKEAI_BASE_URL=http://127.0.0.1:9090"
 Environment="INVOKEAI_QUEUE_ID=default"
-Environment="INVOKEAI_DEFAULT_MODEL=sd-xl-base-1.0"
+Environment="INVOKEAI_DEFAULT_MODEL=Juggernaut XL v9"
 Environment="SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json"
 Environment="SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48"
 
