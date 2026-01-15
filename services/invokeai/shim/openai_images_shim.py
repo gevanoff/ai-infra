@@ -174,9 +174,9 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
             break
 
     if not candidates:
-        # If model listing is unavailable, fall back to a minimal model identifier.
+        # If model listing is unavailable, leave the graph template's model as-is.
         # Some InvokeAI deployments do not expose /api/v1/models.
-        return {"key": model, "name": model}
+        return None
 
     def _matches(item: dict, needle: str) -> bool:
         for k in ("key", "name", "id", "model"):
@@ -349,7 +349,7 @@ def _apply_invokeai_workflow_overrides(
             continue
 
         # Ensure the model loader has a concrete model value when provided.
-        if model_info and ntype in ("sdxl_model_loader", "model_loader"):
+        if isinstance(model_info, dict) and ntype in ("sdxl_model_loader", "model_loader"):
             _set_input_value(inputs, "model", model_info)
             continue
 
