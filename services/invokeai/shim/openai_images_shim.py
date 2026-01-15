@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import time
 import urllib.error
@@ -39,6 +40,7 @@ from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
+logger = logging.getLogger("openai_images_shim")
 
 
 class ImagesGenerationsRequest(BaseModel):
@@ -540,15 +542,28 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     graph_api = _ensure_invokeai_api_graph(graph)
 
+    nodes_api = graph_api.get("nodes")
+    if isinstance(nodes_api, dict):
+        for node_id, node in nodes_api.items():
+            if not isinstance(node, dict):
+                continue
+            if node.get("type") not in ("sdxl_model_loader", "model_loader"):
+                continue
+            inputs = node.get("inputs")
+            model_value = inputs.get("model") if isinstance(inputs, dict) else None
+            logger.info("Model loader input node_id=%s model=%s", node_id, model_value)
+
     if cfg.debug_graph_path:
         try:
+            logger.info("Writing debug graph to %s", cfg.debug_graph_path)
             with open(cfg.debug_graph_path, "w", encoding="utf-8") as f:
                 json.dump(graph_api, f, indent=2)
+            logger.info("Debug graph written to %s", cfg.debug_graph_path)
         except Exception as e:
+            logger.exception("Failed to write debug graph to %s", cfg.debug_graph_path)
             raise HTTPException(status_code=500, detail=f"Failed to write SHIM_DEBUG_GRAPH_PATH: {e}")
 
     # Preflight: ensure the model input is present for model loader nodes.
-    nodes_api = graph_api.get("nodes")
     if isinstance(nodes_api, dict):
         for node_id, node in nodes_api.items():
             if not isinstance(node, dict):
