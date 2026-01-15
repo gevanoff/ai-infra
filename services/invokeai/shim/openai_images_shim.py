@@ -65,6 +65,7 @@ class ShimConfig:
     timeout_s: float
     graph_template_path: Optional[str]
     output_node_id: Optional[str]
+    default_model: Optional[str]
 
 
 def _get_config() -> ShimConfig:
@@ -77,6 +78,7 @@ def _get_config() -> ShimConfig:
         timeout_s=float(os.getenv("SHIM_TIMEOUT_S", "300")),
         graph_template_path=os.getenv("SHIM_GRAPH_TEMPLATE_PATH"),
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
+        default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
     )
 
 
@@ -141,21 +143,43 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
     if not model:
         return None
 
-    models_url = f"{cfg.invokeai_base_url}/api/v1/models"
-    out = _http_json("GET", models_url, payload=None, timeout=20)
-
     candidates: List[dict] = []
-    if isinstance(out, list):
-        candidates = [m for m in out if isinstance(m, dict)]
-    elif isinstance(out, dict):
-        for key in ("models", "items", "data"):
-            maybe = out.get(key)
-            if isinstance(maybe, list):
-                candidates = [m for m in maybe if isinstance(m, dict)]
-                break
+    models_urls = (
+        f"{cfg.invokeai_base_url}/api/v1/models",
+        f"{cfg.invokeai_base_url}/api/v1/model/list",
+        f"{cfg.invokeai_base_url}/api/v1/model",
+        f"{cfg.invokeai_base_url}/api/v1/models/list",
+    )
+    last_error: Optional[HTTPException] = None
+
+    for models_url in models_urls:
+        try:
+            out = _http_json("GET", models_url, payload=None, timeout=20)
+        except HTTPException as exc:
+            last_error = exc
+            detail = str(exc.detail)
+            if "404" in detail or "Not Found" in detail:
+                continue
+            raise
+
+        if isinstance(out, list):
+            candidates = [m for m in out if isinstance(m, dict)]
+        elif isinstance(out, dict):
+            for key in ("models", "items", "data"):
+                maybe = out.get(key)
+                if isinstance(maybe, list):
+                    candidates = [m for m in maybe if isinstance(m, dict)]
+                    break
+        if candidates:
+            break
 
     if not candidates:
-        raise HTTPException(status_code=502, detail="InvokeAI /api/v1/models returned no models")
+        if last_error is not None:
+            raise HTTPException(
+                status_code=502,
+                detail=f"InvokeAI model list unavailable (tried: {', '.join(models_urls)}): {last_error.detail}",
+            )
+        raise HTTPException(status_code=502, detail="InvokeAI model list returned no models")
 
     def _matches(item: dict, needle: str) -> bool:
         for k in ("key", "name", "id", "model"):
@@ -480,7 +504,8 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     width, height = _parse_size(req.size)
 
-    model_info = _resolve_model_info(req.model, cfg=cfg) if req.model else None
+    model_name = (req.model or "").strip() or (cfg.default_model or "").strip()
+    model_info = _resolve_model_info(model_name, cfg=cfg) if model_name else None
 
     graph = _load_graph_from_template(
         cfg.graph_template_path,
