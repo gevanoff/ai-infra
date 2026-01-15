@@ -70,6 +70,7 @@ class ShimConfig:
     output_node_id: Optional[str]
     default_model: Optional[str]
     debug_graph_path: Optional[str]
+    model_input_mode: str
 
 
 def _get_config() -> ShimConfig:
@@ -84,6 +85,7 @@ def _get_config() -> ShimConfig:
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
         debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
+        model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "dict").strip().lower(),
     )
 
 
@@ -91,12 +93,13 @@ def _get_config() -> ShimConfig:
 def _log_startup() -> None:
     cfg = _get_config()
     logger.info(
-        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s",
+        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s model_mode=%s",
         _SHIM_BUILD,
         cfg.mode,
         cfg.graph_template_path,
         cfg.output_node_id,
         cfg.debug_graph_path,
+        cfg.model_input_mode,
     )
 
 
@@ -238,6 +241,7 @@ def _load_graph_from_template(
     height: int,
     seed: Optional[int],
     model_info: Optional[dict],
+    model_input_mode: str = "dict",
 ) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -259,6 +263,7 @@ def _load_graph_from_template(
         height=height,
         seed=seed,
         model_info=model_info,
+        model_input_mode=model_input_mode,
     )
     return out
 
@@ -310,6 +315,7 @@ def _apply_invokeai_workflow_overrides(
     cfg_scale: Optional[float] = None,
     scheduler: Optional[str] = None,
     model_info: Optional[dict] = None,
+    model_input_mode: str = "dict",
 ) -> None:
     nodes = graph.get("nodes")
     if not isinstance(nodes, list):
@@ -369,7 +375,16 @@ def _apply_invokeai_workflow_overrides(
         # Ensure the model loader has a concrete model value when provided.
         if ntype in ("sdxl_model_loader", "model_loader"):
             if isinstance(model_info, dict):
-                _set_input_value(inputs, "model", model_info)
+                if model_input_mode == "id":
+                    model_value = model_info.get("id") or model_info.get("key") or model_info.get("name")
+                    if model_value:
+                        _set_input_value(inputs, "model", model_value)
+                elif model_input_mode == "name":
+                    model_value = model_info.get("name") or model_info.get("key") or model_info.get("id")
+                    if model_value:
+                        _set_input_value(inputs, "model", model_value)
+                else:
+                    _set_input_value(inputs, "model", model_info)
             else:
                 model_field = inputs.get("model") if isinstance(inputs, dict) else None
                 if isinstance(model_field, dict) and "value" in model_field:
@@ -536,6 +551,7 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         height=height,
         seed=req.seed,
         model_info=model_info,
+        model_input_mode=cfg.model_input_mode,
     )
     _apply_invokeai_workflow_overrides(
         graph,
@@ -548,6 +564,7 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         cfg_scale=req.cfg_scale,
         scheduler=(req.scheduler or "").strip() or None,
         model_info=model_info,
+        model_input_mode=cfg.model_input_mode,
     )
 
     output_node_id = (cfg.output_node_id or "").strip() or _detect_output_node_id(graph)
