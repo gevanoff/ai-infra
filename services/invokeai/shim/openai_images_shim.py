@@ -133,6 +133,52 @@ def _http_bytes(url: str, timeout: float = 30) -> bytes:
         raise HTTPException(status_code=502, detail=f"Upstream URL error calling {url}: {e}")
 
 
+def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[dict]:
+    if not model:
+        return None
+
+    model = model.strip()
+    if not model:
+        return None
+
+    models_url = f"{cfg.invokeai_base_url}/api/v1/models"
+    out = _http_json("GET", models_url, payload=None, timeout=20)
+
+    candidates: List[dict] = []
+    if isinstance(out, list):
+        candidates = [m for m in out if isinstance(m, dict)]
+    elif isinstance(out, dict):
+        for key in ("models", "items", "data"):
+            maybe = out.get(key)
+            if isinstance(maybe, list):
+                candidates = [m for m in maybe if isinstance(m, dict)]
+                break
+
+    if not candidates:
+        raise HTTPException(status_code=502, detail="InvokeAI /api/v1/models returned no models")
+
+    def _matches(item: dict, needle: str) -> bool:
+        for k in ("key", "name", "id", "model"):
+            v = item.get(k)
+            if isinstance(v, str) and v.strip():
+                if v == needle:
+                    return True
+                if v.lower() == needle.lower():
+                    return True
+        return False
+
+    match = next((m for m in candidates if _matches(m, model)), None)
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model '{model}' not found in InvokeAI /api/v1/models",
+        )
+
+    # Normalize to the minimal shape used by workflow exports.
+    normalized = {k: match.get(k) for k in ("key", "hash", "name", "base", "type") if k in match}
+    return normalized or match
+
+
 def _deep_replace_placeholders(value: Any, mapping: Dict[str, str]) -> Any:
     if isinstance(value, str):
         for k, v in mapping.items():
@@ -145,7 +191,15 @@ def _deep_replace_placeholders(value: Any, mapping: Dict[str, str]) -> Any:
     return value
 
 
-def _load_graph_from_template(path: str, *, prompt: str, width: int, height: int, seed: Optional[int]) -> dict:
+def _load_graph_from_template(
+    path: str,
+    *,
+    prompt: str,
+    width: int,
+    height: int,
+    seed: Optional[int],
+    model_info: Optional[dict],
+) -> dict:
     try:
         with open(path, "r", encoding="utf-8") as f:
             graph = json.load(f)
@@ -158,7 +212,15 @@ def _load_graph_from_template(path: str, *, prompt: str, width: int, height: int
     }
 
     out = _deep_replace_placeholders(graph, mapping)
-    _apply_invokeai_workflow_overrides(out, prompt=prompt, negative_prompt="", width=width, height=height, seed=seed)
+    _apply_invokeai_workflow_overrides(
+        out,
+        prompt=prompt,
+        negative_prompt="",
+        width=width,
+        height=height,
+        seed=seed,
+        model_info=model_info,
+    )
     return out
 
 
@@ -208,6 +270,7 @@ def _apply_invokeai_workflow_overrides(
     steps: Optional[int] = None,
     cfg_scale: Optional[float] = None,
     scheduler: Optional[str] = None,
+    model_info: Optional[dict] = None,
 ) -> None:
     nodes = graph.get("nodes")
     if not isinstance(nodes, list):
@@ -262,6 +325,11 @@ def _apply_invokeai_workflow_overrides(
         if ntype == "rand_int" and label == "Random Seed" and seed is not None:
             _set_input_value(inputs, "low", int(seed))
             _set_input_value(inputs, "high", int(seed))
+            continue
+
+        # Ensure the model loader has a concrete model value when provided.
+        if model_info and ntype in ("sdxl_model_loader", "model_loader"):
+            _set_input_value(inputs, "model", model_info)
             continue
 
         # Basic quality knobs when present.
@@ -412,7 +480,16 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     width, height = _parse_size(req.size)
 
-    graph = _load_graph_from_template(cfg.graph_template_path, prompt=req.prompt, width=width, height=height, seed=req.seed)
+    model_info = _resolve_model_info(req.model, cfg=cfg) if req.model else None
+
+    graph = _load_graph_from_template(
+        cfg.graph_template_path,
+        prompt=req.prompt,
+        width=width,
+        height=height,
+        seed=req.seed,
+        model_info=model_info,
+    )
     _apply_invokeai_workflow_overrides(
         graph,
         prompt=req.prompt,
@@ -423,6 +500,7 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         steps=req.steps,
         cfg_scale=req.cfg_scale,
         scheduler=(req.scheduler or "").strip() or None,
+        model_info=model_info,
     )
 
     output_node_id = (cfg.output_node_id or "").strip() or _detect_output_node_id(graph)
