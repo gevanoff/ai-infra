@@ -130,6 +130,12 @@ Expected shape:
 
 Once stub mode is working, switch the shim to `SHIM_MODE=invokeai_queue` so it enqueues a real InvokeAI workflow and returns the generated image as `b64_json`.
 
+Note on `model` handling:
+
+- The gateway may send a model string that does not match InvokeAI's internal model registry.
+- By default, the shim treats the requested model as best-effort and will fall back to the model embedded in the workflow template.
+- To make mismatched models a hard error, set `SHIM_STRICT_MODEL=true` in the shim service environment.
+
 This repo deploys a default template to:
 
 ```bash

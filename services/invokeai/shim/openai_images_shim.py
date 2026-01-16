@@ -71,6 +71,7 @@ class ShimConfig:
     default_model: Optional[str]
     debug_graph_path: Optional[str]
     model_input_mode: str
+    strict_model: bool
 
 
 def _get_config() -> ShimConfig:
@@ -86,7 +87,16 @@ def _get_config() -> ShimConfig:
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
         debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
         model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "dict").strip().lower(),
+        strict_model=os.getenv("SHIM_STRICT_MODEL", "false").strip().lower() in {"1", "true", "yes"},
     )
+
+
+def _is_not_found(exc: HTTPException) -> bool:
+    # _http_json formats 404s as: "Upstream HTTP error 404 calling <url>: <body>"
+    try:
+        return "HTTP error 404" in str(exc.detail)
+    except Exception:
+        return False
 
 
 @app.on_event("startup")
@@ -211,10 +221,16 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
 
     match = next((m for m in candidates if _matches(m, model)), None)
     if not match:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Model '{model}' not found in InvokeAI /api/v1/models",
-        )
+        # In practice, callers (e.g. the gateway) may send a model name that doesn't match
+        # InvokeAI's internal registry keys. Default behavior is best-effort: keep the
+        # template's model unchanged.
+        if cfg.strict_model:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model '{model}' not found in InvokeAI /api/v1/models",
+            )
+        logger.warning("Requested model %r not found in InvokeAI model list; proceeding with template model", model)
+        return None
 
     # Normalize to the minimal shape used by workflow exports.
     normalized = {k: match.get(k) for k in ("key", "hash", "name", "base", "type") if k in match}
@@ -509,8 +525,30 @@ def _ensure_invokeai_api_graph(graph: dict) -> dict:
 
 
 def _extract_image_name_from_queue_item(queue_item: dict, output_node_id: str) -> str:
+    def _find_first_image_name(obj: Any) -> Optional[str]:
+        if isinstance(obj, dict):
+            v = obj.get("image_name")
+            if isinstance(v, str) and v:
+                return v
+            for vv in obj.values():
+                found = _find_first_image_name(vv)
+                if found:
+                    return found
+            return None
+        if isinstance(obj, list):
+            for vv in obj:
+                found = _find_first_image_name(vv)
+                if found:
+                    return found
+            return None
+        return None
+
     session = queue_item.get("session")
     if not isinstance(session, dict):
+        # Some versions omit session details from the queue item; fall back to a best-effort scan.
+        found = _find_first_image_name(queue_item)
+        if found:
+            return found
         raise HTTPException(status_code=502, detail="InvokeAI queue item missing session")
 
     source_prepared_mapping = session.get("source_prepared_mapping")
@@ -539,6 +577,9 @@ def _extract_image_name_from_queue_item(queue_item: dict, output_node_id: str) -
 
     image_name = image.get("image_name")
     if not isinstance(image_name, str) or not image_name:
+        found = _find_first_image_name(queue_item)
+        if found:
+            return found
         raise HTTPException(status_code=502, detail="InvokeAI result missing image.image_name")
 
     return image_name
@@ -620,7 +661,25 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     origin = f"openai-images-shim:{int(time.time() * 1000)}"
 
-    enqueue_url = f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch"
+    def _extract_item_id(enqueue_result: Any) -> str:
+        if not isinstance(enqueue_result, dict):
+            raise HTTPException(status_code=502, detail=f"InvokeAI enqueue returned non-object: {enqueue_result}")
+
+        # Common shapes observed across versions:
+        # - {"item_ids": [123]}
+        # - {"item_ids": ["123"]}
+        # - {"item_id": 123}
+        for key in ("item_ids", "item_id"):
+            v = enqueue_result.get(key)
+            if isinstance(v, list) and v:
+                v0 = v[0]
+                if isinstance(v0, (int, str)):
+                    return str(v0)
+            if isinstance(v, (int, str)):
+                return str(v)
+
+        raise HTTPException(status_code=502, detail=f"InvokeAI enqueue returned unexpected payload: {enqueue_result}")
+
     enqueue_body = {
         "prepend": True,
         "batch": {
@@ -630,21 +689,54 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
             "runs": 1,
         },
     }
-    enqueue_result = _http_json("POST", enqueue_url, enqueue_body, timeout=30)
 
-    item_ids = enqueue_result.get("item_ids") if isinstance(enqueue_result, dict) else None
-    if not isinstance(item_ids, list) or not item_ids or not isinstance(item_ids[0], int):
-        raise HTTPException(status_code=502, detail=f"InvokeAI enqueue_batch returned unexpected item_ids: {enqueue_result}")
+    enqueue_urls = (
+        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch",
+        # Some versions use /enqueue instead of /enqueue_batch.
+        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue",
+    )
 
-    item_id = item_ids[0]
+    enqueue_result: Any = None
+    last_exc: Optional[HTTPException] = None
+    for enqueue_url in enqueue_urls:
+        try:
+            enqueue_result = _http_json("POST", enqueue_url, enqueue_body, timeout=30)
+            last_exc = None
+            break
+        except HTTPException as exc:
+            last_exc = exc
+            if _is_not_found(exc):
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+
+    item_id = _extract_item_id(enqueue_result)
 
     # Poll queue item until completion
-    get_item_url = f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/i/{item_id}"
+    get_item_urls = (
+        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/i/{urllib.parse.quote(str(item_id))}",
+        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/items/{urllib.parse.quote(str(item_id))}",
+    )
     deadline = time.time() + cfg.timeout_s
     last_status = None
 
     while time.time() < deadline:
-        queue_item = _http_json("GET", get_item_url, payload=None, timeout=30)
+        queue_item: Any = None
+        last_exc = None
+        for get_item_url in get_item_urls:
+            try:
+                queue_item = _http_json("GET", get_item_url, payload=None, timeout=30)
+                last_exc = None
+                break
+            except HTTPException as exc:
+                last_exc = exc
+                if _is_not_found(exc):
+                    continue
+                raise
+        if last_exc is not None:
+            raise last_exc
         if not isinstance(queue_item, dict):
             raise HTTPException(status_code=502, detail=f"InvokeAI get_queue_item returned non-object: {queue_item}")
 
@@ -653,8 +745,26 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
         if status == "completed":
             image_name = _extract_image_name_from_queue_item(queue_item, output_node_id)
-            image_url = f"{cfg.invokeai_base_url}/api/v1/images/i/{urllib.parse.quote(image_name)}/full"
-            image_bytes = _http_bytes(image_url, timeout=60)
+            image_urls = (
+                f"{cfg.invokeai_base_url}/api/v1/images/i/{urllib.parse.quote(image_name)}/full",
+                f"{cfg.invokeai_base_url}/api/v1/images/i/{urllib.parse.quote(image_name)}",
+            )
+            image_bytes: Optional[bytes] = None
+            last_exc = None
+            for image_url in image_urls:
+                try:
+                    image_bytes = _http_bytes(image_url, timeout=60)
+                    last_exc = None
+                    break
+                except HTTPException as exc:
+                    last_exc = exc
+                    if _is_not_found(exc):
+                        continue
+                    raise
+            if image_bytes is None and last_exc is not None:
+                raise last_exc
+            if image_bytes is None:
+                raise HTTPException(status_code=502, detail="InvokeAI did not return image bytes")
             return base64.b64encode(image_bytes).decode("ascii")
 
         if status == "failed":
@@ -679,8 +789,28 @@ def healthz() -> Dict[str, str]:
 def readyz() -> Dict[str, Any]:
     cfg = _get_config()
     # If InvokeAI isn't reachable, we are not ready.
-    version_url = f"{cfg.invokeai_base_url}/api/v1/app/version"
-    version = _http_json("GET", version_url, payload=None, timeout=5)
+    version_urls = (
+        f"{cfg.invokeai_base_url}/api/v1/app/version",
+        f"{cfg.invokeai_base_url}/api/v1/version",
+        f"{cfg.invokeai_base_url}/api/v1/app",
+    )
+
+    version: Any = None
+    last_exc: Optional[HTTPException] = None
+    for version_url in version_urls:
+        try:
+            version = _http_json("GET", version_url, payload=None, timeout=5)
+            last_exc = None
+            break
+        except HTTPException as exc:
+            last_exc = exc
+            if _is_not_found(exc):
+                continue
+            raise
+
+    if last_exc is not None:
+        raise last_exc
+
     return {"status": "ok", "mode": cfg.mode, "invokeai_version": version}
 
 

@@ -11,7 +11,7 @@ WorkingDirectory=/var/lib/invokeai/openai_images_shim
 
 Environment="PATH=/var/lib/invokeai/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="SHIM_PORT=9091"
-Environment="SHIM_MODE=invokeai_queue"
+Environment="SHIM_MODE=stub"
 Environment="INVOKEAI_BASE_URL=http://127.0.0.1:9090"
 Environment="INVOKEAI_QUEUE_ID=default"
 Environment="INVOKEAI_DEFAULT_MODEL=Juggernaut XL v9"
