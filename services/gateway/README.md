@@ -168,6 +168,20 @@ Gateway supports a small alias registry so clients can send `model: "coder"` and
 - Runtime path (read by the app): `/var/lib/gateway/app/model_aliases.json`
 - Deploy behavior: `deploy.sh` copies the template into the runtime path **only if** the runtime file does not already exist.
 
+Recommended baseline (Option A: Ollama-first)
+
+- `DEFAULT_BACKEND=ollama`
+- `ROUTER_ENABLE_POLICY=true`
+- Set `OLLAMA_MODEL_STRONG`/`OLLAMA_MODEL_FAST` to your preferred quality/speed models.
+- Use aliases to provide stable client-facing names:
+   - `default` -> strong general model (tools allowed)
+   - `fast` -> cheap/low-latency model (no tools)
+   - `coder` -> coding/tooling model (tools allowed)
+   - `long` -> long-context model (no tools)
+   - optional `giant` -> very large model for special cases
+
+Note: if `/var/lib/gateway/app/model_aliases.json` already exists on the host, updating the template in this repo will not change behavior until you update the runtime file (or delete it and redeploy).
+
 ### Memory v2
 
 Memory v2 stores typed memories with source + timestamps, supports filtered retrieval, and supports compaction.

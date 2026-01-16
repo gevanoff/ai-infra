@@ -1,8 +1,9 @@
 {
   "aliases": {
-    "default": {"backend": "ollama", "model": "qwen2.5:32b", "context": 40000, "tools": true},
+    "default": {"backend": "ollama", "model": "llama3.3:70b", "context": 40000, "tools": true},
     "fast": {"backend": "ollama", "model": "qwen2.5:7b", "context": 8000, "tools": false},
-    "coder": {"backend": "ollama", "model": "deepseek-coder:33b", "context": 32000, "tools": true},
-    "long": {"backend": "mlx", "model": "mlx-community/gemma-2-2b-it-8bit", "context": 40000, "tools": false}
+    "coder": {"backend": "ollama", "model": "qwen2.5-coder:32b", "context": 32000, "tools": true},
+    "long": {"backend": "ollama", "model": "qwen3:30b", "context": 40000, "tools": false},
+    "giant": {"backend": "ollama", "model": "qwen3:235b", "context": 40000, "tools": false}
   }
 }
