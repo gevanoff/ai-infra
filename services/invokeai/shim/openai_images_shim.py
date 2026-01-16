@@ -25,6 +25,7 @@ Notes
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -41,7 +42,16 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-15a"
+_SHIM_BUILD = "2026-01-16a"
+
+
+def _shim_file_sha256_prefix() -> Optional[str]:
+    try:
+        p = __file__
+        with open(p, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:12]
+    except Exception:
+        return None
 
 
 class ImagesGenerationsRequest(BaseModel):
@@ -668,10 +678,21 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
                 continue
             inputs = node.get("inputs")
             model_value = inputs.get("model") if isinstance(inputs, dict) else None
+            missing = False
             if model_value is None:
+                missing = True
+            elif isinstance(model_value, str) and not model_value.strip():
+                missing = True
+            elif isinstance(model_value, dict) and not model_value:
+                missing = True
+
+            if missing:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Preflight missing model input in graph (node_id={node_id})",
+                    detail=(
+                        "Preflight missing/empty model input in graph "
+                        f"(node_id={node_id}, model_input_mode={cfg.model_input_mode}, model={model_value!r})"
+                    ),
                 )
 
     origin = f"openai-images-shim:{int(time.time() * 1000)}"
@@ -826,7 +847,14 @@ def readyz() -> Dict[str, Any]:
     if last_exc is not None:
         raise last_exc
 
-    return {"status": "ok", "mode": cfg.mode, "invokeai_version": version}
+    return {
+        "status": "ok",
+        "mode": cfg.mode,
+        "shim_build": _SHIM_BUILD,
+        "shim_file_sha256": _shim_file_sha256_prefix(),
+        "shim_model_input_mode": cfg.model_input_mode,
+        "invokeai_version": version,
+    }
 
 
 @app.post("/v1/images/generations")
