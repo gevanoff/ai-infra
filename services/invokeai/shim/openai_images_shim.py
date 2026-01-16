@@ -389,8 +389,17 @@ def _apply_invokeai_workflow_overrides(
                 model_field = inputs.get("model") if isinstance(inputs, dict) else None
                 if isinstance(model_field, dict) and "value" in model_field:
                     value = model_field.get("value")
-                    if isinstance(value, dict) and "key" in value and "id" not in value:
-                        value["id"] = value["key"]
+                    if isinstance(value, dict):
+                        if "key" in value and "id" not in value:
+                            value["id"] = value["key"]
+                        if model_input_mode == "id":
+                            model_value = value.get("id") or value.get("key") or value.get("name")
+                            if model_value:
+                                _set_input_value(inputs, "model", model_value)
+                        elif model_input_mode == "name":
+                            model_value = value.get("name") or value.get("key") or value.get("id")
+                            if model_value:
+                                _set_input_value(inputs, "model", model_value)
             continue
 
         # Basic quality knobs when present.
