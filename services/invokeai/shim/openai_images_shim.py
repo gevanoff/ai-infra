@@ -86,7 +86,9 @@ def _get_config() -> ShimConfig:
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
         debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
-        model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "dict").strip().lower(),
+        # Newer InvokeAI queue validation tends to be strict about model inputs.
+        # Using ids is the most portable representation across versions.
+        model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "id").strip().lower(),
         strict_model=os.getenv("SHIM_STRICT_MODEL", "false").strip().lower() in {"1", "true", "yes"},
     )
 
@@ -388,34 +390,47 @@ def _apply_invokeai_workflow_overrides(
             _set_input_value(inputs, "high", int(seed))
             continue
 
+        def _normalize_model_value(value: Any) -> Any:
+            # Workflow exports usually store model selection as an object with a "key".
+            # Some InvokeAI API versions expect the raw id/key string instead.
+            if isinstance(value, dict):
+                if "key" in value and "id" not in value:
+                    value["id"] = value["key"]
+                if model_input_mode == "id":
+                    return value.get("id") or value.get("key") or value.get("name")
+                if model_input_mode == "name":
+                    return value.get("name") or value.get("key") or value.get("id")
+                return value
+            if isinstance(value, str):
+                vv = value.strip()
+                return vv if vv else value
+            return value
+
         # Ensure the model loader has a concrete model value when provided.
         if ntype in ("sdxl_model_loader", "model_loader"):
             if isinstance(model_info, dict):
-                if model_input_mode == "id":
-                    model_value = model_info.get("id") or model_info.get("key") or model_info.get("name")
-                    if model_value:
-                        _set_input_value(inputs, "model", model_value)
-                elif model_input_mode == "name":
-                    model_value = model_info.get("name") or model_info.get("key") or model_info.get("id")
-                    if model_value:
-                        _set_input_value(inputs, "model", model_value)
-                else:
-                    _set_input_value(inputs, "model", model_info)
+                _set_input_value(inputs, "model", _normalize_model_value(model_info))
             else:
                 model_field = inputs.get("model") if isinstance(inputs, dict) else None
                 if isinstance(model_field, dict) and "value" in model_field:
                     value = model_field.get("value")
-                    if isinstance(value, dict):
-                        if "key" in value and "id" not in value:
-                            value["id"] = value["key"]
-                        if model_input_mode == "id":
-                            model_value = value.get("id") or value.get("key") or value.get("name")
-                            if model_value:
-                                _set_input_value(inputs, "model", model_value)
-                        elif model_input_mode == "name":
-                            model_value = value.get("name") or value.get("key") or value.get("id")
-                            if model_value:
-                                _set_input_value(inputs, "model", model_value)
+                    normalized = _normalize_model_value(value)
+                    # Always write back the normalized form so the API graph conversion sees it.
+                    if normalized is not None:
+                        _set_input_value(inputs, "model", normalized)
+            continue
+
+        # The VAE loader has the same model-selection shape as the main model loader.
+        if ntype == "vae_loader":
+            if isinstance(model_info, dict):
+                # Do not override the VAE model based on the requested main model.
+                # Only normalize the existing template value.
+                pass
+            vae_field = inputs.get("vae_model") if isinstance(inputs, dict) else None
+            if isinstance(vae_field, dict) and "value" in vae_field:
+                normalized = _normalize_model_value(vae_field.get("value"))
+                if normalized is not None:
+                    _set_input_value(inputs, "vae_model", normalized)
             continue
 
         # Basic quality knobs when present.

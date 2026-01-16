@@ -136,6 +136,11 @@ Note on `model` handling:
 - By default, the shim treats the requested model as best-effort and will fall back to the model embedded in the workflow template.
 - To make mismatched models a hard error, set `SHIM_STRICT_MODEL=true` in the shim service environment.
 
+InvokeAI model input mode:
+
+- `SHIM_MODEL_INPUT_MODE=id|name|dict` controls what the shim writes into model-selection fields in the queued graph.
+- Recommended for InvokeAI 6.x: `SHIM_MODEL_INPUT_MODE=id` (most compatible with strict queue validation).
+
 This repo deploys a default template to:
 
 ```bash
