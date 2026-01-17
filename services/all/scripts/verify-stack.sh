@@ -86,6 +86,31 @@ fi
 require_cmd curl
 require_cmd python3
 
+quote_sh() {
+  local s="$1"
+  s=${s//\'/\'"\'"\'}
+  printf "'%s'" "$s"
+}
+
+ssh_login_exec() {
+  local hostname="$1"
+  local remote_os="$2"
+  local cmd="$3"
+
+  local q
+  if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
+    cmd="if [ -f ~/.profile ]; then . ~/.profile; fi; ${cmd}"
+  fi
+  q="$(quote_sh "$cmd")"
+
+  if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
+    ssh "$hostname" "zsh -lc ${q}"
+    return $?
+  fi
+
+  ssh "$hostname" "bash -lc ${q}"
+}
+
 mktemp_file() {
   if command -v mktemp >/dev/null 2>&1; then
     mktemp
@@ -295,12 +320,43 @@ PY
 }
 
 check_mlx() {
-  local hostname="$1"
-  local port="$2"
-  local healthz="$3"
+  local host="$1"
+  local hostname="$2"
+  local remote_os="$3"
+  local port="$4"
+  local healthz="$5"
 
   echo "  mlx:"
-  check_simple_get_200 "models" "http://${hostname}:${port}${healthz}"
+
+  # MLX is commonly bound to 127.0.0.1 on the host for security.
+  # If so, checking via http://${hostname}:${port} from this machine will fail.
+  # In that case, run the check over SSH against localhost on the remote host.
+  if [[ "$hostname" == "127.0.0.1" || "$hostname" == "localhost" ]]; then
+    check_simple_get_200 "models" "http://${hostname}:${port}${healthz}"
+    return $?
+  fi
+
+  if ! command -v ssh >/dev/null 2>&1; then
+    note "ssh not available; falling back to direct network check"
+    check_simple_get_200 "models" "http://${hostname}:${port}${healthz}"
+    return $?
+  fi
+
+  local code
+  code=$(ssh_login_exec "$hostname" "$remote_os" "curl -sS -o /dev/null -w '%{http_code}' --max-time '$TIMEOUT_SEC' 'http://127.0.0.1:${port}${healthz}'" 2>/dev/null || true)
+  code="$(echo "$code" | tr -d '\r' | tail -n 1)"
+
+  if [[ "$code" == "200" ]]; then
+    pass "models"
+    return 0
+  fi
+
+  fail "models (status=$code)"
+  if [[ "$VERBOSE" == "true" ]]; then
+    note "via ssh: ${hostname} -> http://127.0.0.1:${port}${healthz}"
+    ssh_login_exec "$hostname" "$remote_os" "curl -sS --max-time '$TIMEOUT_SEC' 'http://127.0.0.1:${port}${healthz}' | head -n 5" 2>/dev/null | sed 's/^/  body: /' >&2 || true
+  fi
+  return 1
 }
 
 check_ollama() {
@@ -360,20 +416,25 @@ TOTAL=0
 FAILED=0
 
 for host in $HOSTS; do
-  hostname=$(yq ".hosts.$host.hostname" "$HOSTS_FILE")
+  hostname=$(yq -r ".hosts.$host.hostname" "$HOSTS_FILE")
   if [[ "$hostname" == "null" ]]; then
     echo "Error: Host '$host' not found in hosts.yaml" >&2
     continue
   fi
 
+  remote_os=$(yq -r ".hosts.$host.os" "$HOSTS_FILE" 2>/dev/null || true)
+  if [[ -z "$remote_os" || "$remote_os" == "null" ]]; then
+    remote_os="linux"
+  fi
+
   echo "$host ($hostname):"
 
-  roles=$(yq ".hosts.$host.roles[]" "$HOSTS_FILE")
+  roles=$(yq -r ".hosts.$host.roles[]" "$HOSTS_FILE")
   host_failed=false
 
   for role in $roles; do
-    port=$(yq ".services.$role.port" "$HOSTS_FILE")
-    healthz=$(yq ".services.$role.healthz" "$HOSTS_FILE")
+    port=$(yq -r ".services.$role.port" "$HOSTS_FILE")
+    healthz=$(yq -r ".services.$role.healthz" "$HOSTS_FILE")
 
     if [[ "$port" == "null" ]]; then
       echo "  Warning: Service '$role' not defined in hosts.yaml services section" >&2
@@ -389,7 +450,7 @@ for host in $HOSTS; do
         fi
         ;;
       mlx)
-        if ! check_mlx "$hostname" "$port" "$healthz"; then
+        if ! check_mlx "$host" "$hostname" "$remote_os" "$port" "$healthz"; then
           host_failed=true
         fi
         ;;
