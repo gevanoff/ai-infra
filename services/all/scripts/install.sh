@@ -61,11 +61,18 @@ ssh_login_exec() {
 remote_resolve_ai_infra_root_snippet() {
   cat <<'EOF'
 resolve_ai_infra_root() {
-  if [ -n "${AI_INFRA_BASE:-}" ] && [ -d "${AI_INFRA_BASE}/ai-infra" ]; then
-    printf "%s/ai-infra" "${AI_INFRA_BASE}"
-    return 0
+  if [ -n "${AI_INFRA_BASE:-}" ]; then
+    # Allow AI_INFRA_BASE to be either the repos base dir OR the ai-infra repo root.
+    if [ -d "${AI_INFRA_BASE}/services" ] && [ -d "${AI_INFRA_BASE}/.git" ]; then
+      printf "%s" "${AI_INFRA_BASE}"
+      return 0
+    fi
+    if [ -d "${AI_INFRA_BASE}/ai-infra" ]; then
+      printf "%s/ai-infra" "${AI_INFRA_BASE}"
+      return 0
+    fi
   fi
-  for base in "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
     if [ -d "$base/ai-infra" ]; then
       printf "%s/ai-infra" "$base"
       return 0
@@ -85,11 +92,22 @@ EOF
 remote_resolve_gateway_root_snippet() {
   cat <<'EOF'
 resolve_gateway_root() {
-  if [ -n "${AI_INFRA_BASE:-}" ] && [ -d "${AI_INFRA_BASE}/gateway" ]; then
-    printf "%s/gateway" "${AI_INFRA_BASE}"
-    return 0
+  if [ -n "${AI_INFRA_BASE:-}" ]; then
+    # Allow AI_INFRA_BASE to be either the repos base dir OR a sibling/child that implies the base.
+    if [ -d "${AI_INFRA_BASE}/app" ] && [ -d "${AI_INFRA_BASE}/.git" ]; then
+      printf "%s" "${AI_INFRA_BASE}"
+      return 0
+    fi
+    if [ -d "${AI_INFRA_BASE}/gateway" ]; then
+      printf "%s/gateway" "${AI_INFRA_BASE}"
+      return 0
+    fi
+    if [ "$(basename "${AI_INFRA_BASE}")" = "ai-infra" ] && [ -d "$(dirname "${AI_INFRA_BASE}")/gateway" ]; then
+      printf "%s/gateway" "$(dirname "${AI_INFRA_BASE}")"
+      return 0
+    fi
   fi
-  for base in "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
     if [ -d "$base/gateway" ]; then
       printf "%s/gateway" "$base"
       return 0
