@@ -1,0 +1,21 @@
+{
+  "REPLACE_WITH_ADMIN_TOKEN": {
+    "ip_allowlist": "127.0.0.1,10.0.0.0/8",
+    "max_request_bytes": 1000000,
+
+    "tools_allowlist": "noop",
+
+    "tools_rate_limit_rps": 0,
+    "tools_rate_limit_burst": 0
+  },
+
+  "REPLACE_WITH_AUTOMATION_TOKEN": {
+    "ip_allowlist": "127.0.0.1,10.0.0.0/8",
+    "max_request_bytes": 250000,
+
+    "tools_allowlist": "noop,http_fetch_local",
+
+    "tools_rate_limit_rps": 1,
+    "tools_rate_limit_burst": 2
+  }
+}

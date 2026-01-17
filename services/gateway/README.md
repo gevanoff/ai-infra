@@ -127,6 +127,13 @@ Optional: per-token policy JSON
    - `max_request_bytes`: number (overrides `MAX_REQUEST_BYTES` for that token).
    - `ip_allowlist`: comma-separated IPs/CIDRs (overrides `IP_ALLOWLIST` for that token).
 
+Hardening notes:
+
+- If you set `GATEWAY_TOKEN_POLICIES_JSON`, consider also setting `GATEWAY_TOKEN_POLICIES_STRICT=true` so a malformed JSON value fails closed instead of silently disabling restrictions.
+- Prefer managing policies as a JSON file and embedding it into the env var with `jq -c`.
+   - Template: `services/gateway/env/token_policies.json.example`
+   - Example: `GATEWAY_TOKEN_POLICIES_JSON=$(jq -c . /var/lib/gateway/app/token_policies.json)`
+
 Example:
 
 - `GATEWAY_TOKEN_POLICIES_JSON={"ASSOCIATE_TOKEN":{"tools_allowlist":"noop,http_fetch_local","tools_rate_limit_rps":2,"tools_rate_limit_burst":4}}`
