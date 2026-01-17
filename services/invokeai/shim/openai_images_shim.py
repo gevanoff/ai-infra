@@ -554,17 +554,29 @@ def _apply_invokeai_workflow_overrides(
 
         def _normalize_model_value(value: Any) -> Any:
             # Workflow exports usually store model selection as an object with a "key".
-            # Some InvokeAI API versions expect the raw id/key string instead.
+            # InvokeAI queue validation (6.x) can be strict; the most compatible representation
+            # tends to be the minimal object: {"key": "..."}.
             if isinstance(value, dict):
-                if "key" in value and "id" not in value:
-                    value["id"] = value["key"]
+                key = value.get("key") or value.get("id")
+                name = value.get("name")
                 if model_input_mode == "id":
-                    return value.get("id") or value.get("key") or value.get("name")
+                    if isinstance(key, str) and key.strip():
+                        return {"key": key.strip()}
+                    if isinstance(name, str) and name.strip():
+                        return {"name": name.strip()}
+                    return value
                 if model_input_mode == "name":
-                    return value.get("name") or value.get("key") or value.get("id")
+                    if isinstance(name, str) and name.strip():
+                        return name.strip()
+                    if isinstance(key, str) and key.strip():
+                        return key.strip()
+                    return value
                 return value
             if isinstance(value, str):
                 vv = value.strip()
+                if model_input_mode == "id":
+                    # Best-effort: treat a raw string as a key.
+                    return {"key": vv} if vv else value
                 return vv if vv else value
             return value
 
