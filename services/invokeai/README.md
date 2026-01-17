@@ -141,6 +141,11 @@ InvokeAI model input mode:
 - `SHIM_MODEL_INPUT_MODE=id|name|dict` controls what the shim writes into model-selection fields in the queued graph.
 - Recommended for InvokeAI 6.x: `SHIM_MODEL_INPUT_MODE=id` (most compatible with strict queue validation).
 
+InvokeAI graph input format:
+
+- `SHIM_GRAPH_INPUTS_FORMAT=auto|inputs|flat` controls how invocation inputs are represented in the queued graph.
+- If InvokeAI complains about a missing field that appears in the dumped graph under `inputs`, try `SHIM_GRAPH_INPUTS_FORMAT=flat`.
+
 This repo deploys a default template to:
 
 ```bash
@@ -157,6 +162,7 @@ Example `shim.env` values:
 ```bash
 SHIM_MODE=invokeai_queue
 SHIM_MODEL_INPUT_MODE=id
+SHIM_GRAPH_INPUTS_FORMAT=auto
 SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json
 SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48
 # Optional debug:

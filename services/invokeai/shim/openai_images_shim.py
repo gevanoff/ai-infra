@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16g"
+_SHIM_BUILD = "2026-01-16h"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -81,6 +81,7 @@ class ShimConfig:
     default_model: Optional[str]
     debug_graph_path: Optional[str]
     model_input_mode: str
+    graph_inputs_format: str
     strict_model: bool
 
 
@@ -99,6 +100,11 @@ def _get_config() -> ShimConfig:
         # Newer InvokeAI queue validation tends to be strict about model inputs.
         # Using ids is the most portable representation across versions.
         model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "id").strip().lower(),
+        # InvokeAI queue graph formats vary by version:
+        # - Some expect invocation inputs under an `inputs` object (current default).
+        # - Others expect inputs flattened as top-level keys on each invocation.
+        # Values: auto|inputs|flat
+        graph_inputs_format=os.getenv("SHIM_GRAPH_INPUTS_FORMAT", "auto").strip().lower(),
         strict_model=os.getenv("SHIM_STRICT_MODEL", "false").strip().lower() in {"1", "true", "yes"},
     )
 
@@ -138,6 +144,39 @@ def _fetch_openapi_schema(base_url: str) -> Optional[dict]:
         if isinstance(out, dict):
             return out
     return None
+
+
+def _invokeai_queue_prefers_flat_inputs(base_url: str) -> Optional[bool]:
+    """Best-effort detection from OpenAPI: does an invocation schema include an `inputs` property?
+
+    Returns:
+      - False if we see an invocation-like schema with an `inputs` property (prefer wrapper)
+      - True if we don't (assume flat)
+      - None if schema couldn't be fetched
+    """
+    schema = _fetch_openapi_schema(base_url)
+    if not isinstance(schema, dict):
+        return None
+
+    components = schema.get("components")
+    if not isinstance(components, dict):
+        return True
+
+    schemas = components.get("schemas")
+    if not isinstance(schemas, dict):
+        return True
+
+    for s in schemas.values():
+        if not isinstance(s, dict):
+            continue
+        props = s.get("properties")
+        if not isinstance(props, dict):
+            continue
+        # Heuristic: invocation-ish schema with id/type/version and an inputs object.
+        if "inputs" in props and "id" in props and "type" in props:
+            return False
+
+    return True
 
 
 def _discover_queue_enqueue_endpoints(base_url: str, queue_id: str) -> List[Tuple[str, str]]:
@@ -185,13 +224,14 @@ def _discover_queue_enqueue_endpoints(base_url: str, queue_id: str) -> List[Tupl
 def _log_startup() -> None:
     cfg = _get_config()
     logger.info(
-        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s model_mode=%s",
+        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s model_mode=%s graph_inputs=%s",
         _SHIM_BUILD,
         cfg.mode,
         cfg.graph_template_path,
         cfg.output_node_id,
         cfg.debug_graph_path,
         cfg.model_input_mode,
+        cfg.graph_inputs_format,
     )
 
 
@@ -701,7 +741,7 @@ def _apply_invokeai_workflow_overrides(
             continue
 
 
-def _workflow_export_to_api_graph(workflow_export: dict) -> dict:
+def _workflow_export_to_api_graph(workflow_export: dict, *, flatten_inputs: bool) -> dict:
     """Convert an InvokeAI workflow export (ReactFlow-ish) to an API Graph.
 
     InvokeAI's queue API expects:
@@ -742,11 +782,18 @@ def _workflow_export_to_api_graph(workflow_export: dict) -> dict:
                 if isinstance(v, dict) and "value" in v:
                     inputs_out[k] = v.get("value")
 
-        inv: Dict[str, Any] = {
-            "id": node_id,
-            "type": inv_type,
-            "inputs": inputs_out,
-        }
+        if flatten_inputs:
+            inv: Dict[str, Any] = {
+                "id": node_id,
+                "type": inv_type,
+                **inputs_out,
+            }
+        else:
+            inv = {
+                "id": node_id,
+                "type": inv_type,
+                "inputs": inputs_out,
+            }
         version = data.get("version")
         if isinstance(version, str) and version:
             inv["version"] = version
@@ -792,7 +839,16 @@ def _ensure_invokeai_api_graph(graph: dict) -> dict:
     if isinstance(nodes, dict) and isinstance(edges, list):
         return graph
     if isinstance(nodes, list) and isinstance(edges, list):
-        return _workflow_export_to_api_graph(graph)
+        cfg = _get_config()
+        mode = (cfg.graph_inputs_format or "auto").strip().lower()
+        if mode == "flat":
+            flatten = True
+        elif mode == "inputs":
+            flatten = False
+        else:
+            detected = _invokeai_queue_prefers_flat_inputs(cfg.invokeai_base_url)
+            flatten = bool(detected) if detected is not None else False
+        return _workflow_export_to_api_graph(graph, flatten_inputs=flatten)
     raise HTTPException(status_code=500, detail="Graph template must be an InvokeAI API Graph or a workflow export")
 
 
@@ -903,7 +959,10 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
             if node.get("type") not in ("sdxl_model_loader", "model_loader"):
                 continue
             inputs = node.get("inputs")
-            model_value = inputs.get("model") if isinstance(inputs, dict) else None
+            if isinstance(inputs, dict):
+                model_value = inputs.get("model")
+            else:
+                model_value = node.get("model")
             logger.info("Model loader input node_id=%s model=%s", node_id, model_value)
 
     if cfg.debug_graph_path:
@@ -924,7 +983,10 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
             if node.get("type") not in ("sdxl_model_loader", "model_loader"):
                 continue
             inputs = node.get("inputs")
-            model_value = inputs.get("model") if isinstance(inputs, dict) else None
+            if isinstance(inputs, dict):
+                model_value = inputs.get("model")
+            else:
+                model_value = node.get("model")
             missing = False
             if model_value is None:
                 missing = True
@@ -1141,12 +1203,24 @@ def readyz() -> Dict[str, Any]:
     if last_exc is not None:
         raise last_exc
 
+    fmt = (cfg.graph_inputs_format or "auto").strip().lower()
+    if fmt in {"flat", "inputs"}:
+        effective_fmt = fmt
+    else:
+        detected = _invokeai_queue_prefers_flat_inputs(cfg.invokeai_base_url)
+        if detected is None:
+            effective_fmt = "inputs"
+        else:
+            effective_fmt = "flat" if detected else "inputs"
+
     return {
         "status": "ok",
         "mode": cfg.mode,
         "shim_build": _SHIM_BUILD,
         "shim_file_sha256": _shim_file_sha256_prefix(),
         "shim_model_input_mode": cfg.model_input_mode,
+        "shim_graph_inputs_format": cfg.graph_inputs_format,
+        "shim_graph_inputs_effective": effective_fmt,
         "invokeai_version": version,
     }
 
