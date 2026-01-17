@@ -48,6 +48,7 @@ Services are described as macOS `launchd` jobs in `ai-infra/services/*/launchd/*
   - Label: `com.ollama.server`
   - Program: `/usr/local/bin/ollama serve`
   - Listener: `127.0.0.1:11434` via `OLLAMA_HOST=127.0.0.1:11434`
+  - Linux note: if Ollama is hosted on Ubuntu (systemd unit `ollama`) and needs LAN access, bind to `0.0.0.0:11434` and restrict inbound traffic with firewall rules (the install script allows `tcp/11434` from `10.10.22.0/24` by default).
   - Models directory: `/var/lib/ollama/models` via `OLLAMA_MODELS=/var/lib/ollama/models`
   - Stdout/stderr logs: `/var/log/ollama/ollama.out.log`, `/var/log/ollama/ollama.err.log`
   - Source: `ai-infra/services/ollama/launchd/com.ollama.service.plist.example`
