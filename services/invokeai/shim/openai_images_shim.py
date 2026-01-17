@@ -179,6 +179,31 @@ def _invokeai_queue_prefers_flat_inputs(base_url: str) -> Optional[bool]:
     return True
 
 
+def _strip_legacy_board_fields(obj: Any) -> None:
+    """Strip legacy `board: "auto"` fields that fail strict queue validation.
+
+    InvokeAI 6.10 validates `board` as a BoardField object; some exported templates
+    (or older graphs) include `board` as a string (commonly "auto"). When present,
+    InvokeAI rejects the enqueue payload with 422.
+
+    We remove string-valued `board` keys so InvokeAI can apply defaults.
+    """
+
+    if isinstance(obj, dict):
+        board_val = obj.get("board")
+        if isinstance(board_val, str) and board_val.strip().lower() in {"auto", ""}:
+            obj.pop("board", None)
+
+        for _, v in list(obj.items()):
+            _strip_legacy_board_fields(v)
+        return
+
+    if isinstance(obj, list):
+        for v in obj:
+            _strip_legacy_board_fields(v)
+        return
+
+
 def _discover_queue_enqueue_endpoints(base_url: str, queue_id: str) -> List[Tuple[str, str]]:
     """Return list of (method, url) for enqueue endpoints discovered via OpenAPI."""
     schema = _fetch_openapi_schema(base_url)
@@ -992,6 +1017,9 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         raise HTTPException(status_code=500, detail="SHIM_OUTPUT_NODE_ID not set and could not auto-detect output node")
 
     graph_api = _ensure_invokeai_api_graph(graph)
+
+    # Normalize legacy fields that break strict queue validation.
+    _strip_legacy_board_fields(graph_api)
 
     nodes_api = graph_api.get("nodes")
     if isinstance(nodes_api, dict):
