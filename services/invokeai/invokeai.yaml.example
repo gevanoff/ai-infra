@@ -12,7 +12,7 @@ InvokeAI:
     
     # CORS settings (gateway needs access)
     allow_origins:
-      - "http://ada2.local:8800"
+      - "http://ada2:8800"
       - "http://127.0.0.1:8800"
     
   Generation:

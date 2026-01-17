@@ -78,12 +78,12 @@ sudo systemctl disable invokeai
 
 ## Health Endpoints
 
-- `http://ada2.local:7860/healthz` - Liveness check (always returns 200)
-- `http://ada2.local:7860/readyz` - Readiness check (proxies to the shim, which checks InvokeAI)
+- `http://ada2:7860/healthz` - Liveness check (always returns 200)
+- `http://ada2:7860/readyz` - Readiness check (proxies to the shim, which checks InvokeAI)
 
 ## Web UI
 
-Access at `http://ada2.local:7860` to:
+Access at `http://ada2:7860` to:
 - Download/manage models
 - Test image generation
 - Configure workflows
@@ -93,13 +93,13 @@ Access at `http://ada2.local:7860` to:
 OpenAI-compatible endpoint for gateway integration (provided by the shim):
 
 ```
-POST http://ada2.local:7860/v1/images/generations
+POST http://ada2:7860/v1/images/generations
 ```
 
 InvokeAI native API (not OpenAI-compatible) is available under:
 
 ```
-http://ada2.local:7860/api/v1/
+http://ada2:7860/api/v1/
 ```
 
 ## Quick Validation (Shim Stub Mode)
@@ -109,13 +109,13 @@ The shim systemd unit defaults to `SHIM_MODE=stub`, which returns a tiny PNG as 
 Readiness (nginx -> shim -> InvokeAI):
 
 ```bash
-curl -sS http://ada2.local:7860/readyz
+curl -sS http://ada2:7860/readyz
 ```
 
 OpenAI images contract smoke test (must return `data[0].b64_json`):
 
 ```bash
-curl -sS -X POST http://ada2.local:7860/v1/images/generations \
+curl -sS -X POST http://ada2:7860/v1/images/generations \
   -H "Content-Type: application/json" \
   -d '{"prompt":"shim smoke test","response_format":"b64_json"}'
 ```
@@ -232,7 +232,7 @@ sudo -u invokeai bash -c 'cd /var/lib/invokeai && source venv/bin/activate && py
 ls -la /var/lib/invokeai/models/
 
 # Reinstall via web UI
-# Access http://ada2.local:7860 → Model Manager
+# Access http://ada2:7860 → Model Manager
 ```
 
 ## Integration with Gateway
@@ -243,7 +243,7 @@ The gateway routes images to this service via:
 # In gateway .env:
 IMAGES_BACKEND=http_openai_images
 IMAGES_BACKEND_CLASS=gpu_heavy
-IMAGES_HTTP_BASE_URL=http://ada2.local:7860
+IMAGES_HTTP_BASE_URL=http://ada2:7860
 IMAGES_OPENAI_MODEL=sd-xl-base-1.0
 ```
 
