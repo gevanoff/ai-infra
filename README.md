@@ -68,3 +68,9 @@ Convenience wrappers:
 - `services/all/scripts/install.sh`
 - `services/all/scripts/restart.sh`
 - `services/all/scripts/status.sh`
+
+Cross-host checks (driven by `hosts.yaml`):
+
+- `services/all/scripts/health-check.sh` (simple health endpoints)
+- `services/all/scripts/verify-stack.sh` (functional checks; requires `--token` for gateway)
+- `services/all/scripts/deploy-and-verify.sh` (deploy then verify; supports `--host` and `--check-images`)
