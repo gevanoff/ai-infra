@@ -108,8 +108,7 @@ http_json() {
     shift
   done
 
-  # shellcheck disable=SC2068
-  curl -sS -o "$out_body" -w "%{http_code}" --max-time "$TIMEOUT_SEC" -X "$method" ${hdr_args[@]} "$url"
+  curl -sS -o "$out_body" -w "%{http_code}" --max-time "$TIMEOUT_SEC" -X "$method" "${hdr_args[@]}" "$url"
 }
 
 pass() {

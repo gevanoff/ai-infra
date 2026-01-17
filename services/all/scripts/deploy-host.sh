@@ -192,6 +192,9 @@ for role in $ROLES; do
       --exclude='__pycache__' \
       "$AI_INFRA_ROOT/" "$HOSTNAME:${REMOTE_AI_INFRA_ROOT}/"
 
+    # Normalize line endings on the remote host (Windows -> macOS/Linux CRLF can break shebangs).
+    ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "find \"${REMOTE_AI_INFRA_ROOT}/services\" -type f -name '*.sh' -exec perl -pi -e 's/\r$//' {} +" || true
+
     # Sync gateway if present (needed for remote gateway deployments; harmless otherwise)
     if [ -d "$GATEWAY_ROOT" ]; then
       rsync -az --delete \
@@ -199,6 +202,8 @@ for role in $ROLES; do
         --exclude='*.pyc' \
         --exclude='__pycache__' \
         "$GATEWAY_ROOT/" "$HOSTNAME:${REMOTE_GATEWAY_ROOT}/"
+
+      ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "find \"${REMOTE_GATEWAY_ROOT}\" -type f -name '*.sh' -exec perl -pi -e 's/\r$//' {} +" || true
     fi
 
     # Then run the deploy script on the remote host
