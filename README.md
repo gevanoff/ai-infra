@@ -84,6 +84,8 @@ Remote execution notes:
 		- Ubuntu/Linux: `ssh <host> 'bash -lc "echo $AI_INFRA_BASE"'`
 		- macOS: `ssh <host> 'zsh -lc "echo $AI_INFRA_BASE"'`
 
+	- If `bash -lc` prints an empty value, your `~/.bash_profile` likely has an early-return for non-interactive shells (common). Put `export AI_INFRA_BASE=...` in `~/.profile` (or above that guard), and optionally have `~/.bash_profile` source `~/.profile`.
+
 Cross-host utilities:
 
 - `services/all/scripts/pull-models.sh` (pull Ollama models fleet-wide from `services/ollama/models/manifest.txt`)
