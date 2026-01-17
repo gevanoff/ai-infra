@@ -71,8 +71,14 @@ run_status_remote() {
   local hostname="$2"
   local role="$3"
 
-  local remote_base="${AI_INFRA_REMOTE_BASE:-~/ai}"
-  local remote_ai_infra_root="${remote_base%/}/ai-infra"
+  local remote_ai_infra_root=""
+  if [[ -n "${AI_INFRA_REMOTE_BASE:-}" ]]; then
+    local remote_base="${AI_INFRA_REMOTE_BASE}"
+    remote_ai_infra_root="${remote_base%/}/ai-infra"
+  else
+    # Evaluate AI_INFRA_BASE on the remote host (fallback to ~/ai).
+    remote_ai_infra_root='"${AI_INFRA_BASE:-~/ai}"/ai-infra'
+  fi
 
   # Assumes ai-infra is already present on the remote host (deploy-host.sh syncs it).
   ssh "$hostname" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/status.sh"
@@ -80,9 +86,16 @@ run_status_remote() {
 
 remote_git_pull() {
   local hostname="$1"
-  local remote_base="${AI_INFRA_REMOTE_BASE:-~/ai}"
-  local remote_ai_infra_root="${remote_base%/}/ai-infra"
-  local remote_gateway_root="${remote_base%/}/gateway"
+  local remote_ai_infra_root=""
+  local remote_gateway_root=""
+  if [[ -n "${AI_INFRA_REMOTE_BASE:-}" ]]; then
+    local remote_base="${AI_INFRA_REMOTE_BASE}"
+    remote_ai_infra_root="${remote_base%/}/ai-infra"
+    remote_gateway_root="${remote_base%/}/gateway"
+  else
+    remote_ai_infra_root='"${AI_INFRA_BASE:-~/ai}"/ai-infra'
+    remote_gateway_root='"${AI_INFRA_BASE:-~/ai}"/gateway'
+  fi
 
   if [[ "$GIT_PULL" == "true" ]]; then
     echo "Updating ai-infra on ${hostname}..." >&2

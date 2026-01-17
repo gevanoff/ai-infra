@@ -75,6 +75,10 @@ Cross-host checks (driven by `hosts.yaml`):
 - `services/all/scripts/verify-stack.sh` (functional checks; requires `--token` for gateway)
 - `services/all/scripts/deploy-and-verify.sh` (deploy then verify; supports `--host` and `--check-images`)
 
+Remote execution notes:
+
+- For `services/all/scripts/{status,restart,install}.sh --host <name>`, the scripts assume the remote repos live under `${AI_INFRA_BASE:-~/ai}` on the remote host (set `AI_INFRA_BASE` on each host to override), or you can override locally with `AI_INFRA_REMOTE_BASE`.
+
 Cross-host utilities:
 
 - `services/all/scripts/pull-models.sh` (pull Ollama models fleet-wide from `services/ollama/models/manifest.txt`)
