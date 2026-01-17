@@ -80,9 +80,9 @@ Remote execution notes:
 - For `services/all/scripts/{status,restart,install}.sh --host <name>`, the scripts assume the remote repos live under `${AI_INFRA_BASE:-~/ai}` on the remote host (set `AI_INFRA_BASE` on each host to override), or you can override locally with `AI_INFRA_REMOTE_BASE`.
 - Remote commands run under a login shell (`bash -lc` on Ubuntu, `zsh -lc` on macOS) so normal dotfiles can provide `AI_INFRA_BASE`.
 
-	- Note: a plain `ssh host 'echo $AI_INFRA_BASE'` often won't show it (non-login, non-interactive). To test the same way the scripts do:
-		- Ubuntu/Linux: `ssh <host> 'bash -lc "echo $AI_INFRA_BASE"'`
-		- macOS: `ssh <host> 'zsh -lc "echo $AI_INFRA_BASE"'`
+	- Note: a plain `ssh host 'echo $AI_INFRA_BASE'` often won't show it (non-login, non-interactive). Also be careful with quoting: `$AI_INFRA_BASE` can be expanded by the *remote* SSH shell before `bash -lc` runs. To test the same way the scripts do:
+		- Ubuntu/Linux: `ssh <host> 'bash -lc "echo \$AI_INFRA_BASE"'`
+		- macOS: `ssh <host> 'zsh -lc "echo \$AI_INFRA_BASE"'`
 
 	- If `bash -lc` prints an empty value, your `~/.bash_profile` likely has an early-return for non-interactive shells (common). Put `export AI_INFRA_BASE=...` in `~/.profile` (or above that guard), and optionally have `~/.bash_profile` source `~/.profile`.
 	- The `--host` scripts also explicitly source `~/.profile` on Ubuntu/Linux before running commands to make this reliable.
