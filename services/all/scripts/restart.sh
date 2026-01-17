@@ -43,6 +43,9 @@ ssh_login_exec() {
   local cmd="$3"
 
   local q
+  if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
+    cmd="if [ -f ~/.profile ]; then . ~/.profile; fi; ${cmd}"
+  fi
   q="$(quote_sh "$cmd")"
 
   if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then

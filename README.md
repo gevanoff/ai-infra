@@ -85,6 +85,7 @@ Remote execution notes:
 		- macOS: `ssh <host> 'zsh -lc "echo $AI_INFRA_BASE"'`
 
 	- If `bash -lc` prints an empty value, your `~/.bash_profile` likely has an early-return for non-interactive shells (common). Put `export AI_INFRA_BASE=...` in `~/.profile` (or above that guard), and optionally have `~/.bash_profile` source `~/.profile`.
+	- The `--host` scripts also explicitly source `~/.profile` on Ubuntu/Linux before running commands to make this reliable.
 
 Cross-host utilities:
 
