@@ -16,4 +16,20 @@ fi
 require_cmd launchctl
 
 LABEL="com.mlx.openai.server"
-sudo launchctl kickstart -k system/"$LABEL"
+PLIST="/Library/LaunchDaemons/${LABEL}.plist"
+
+# If the job isn't loaded, try to bootstrap it (common after fresh machine setup).
+if ! sudo launchctl print system/"$LABEL" >/dev/null 2>&1; then
+  if [[ -f "$PLIST" ]]; then
+    sudo launchctl bootstrap system "$PLIST" >/dev/null 2>&1 || true
+  fi
+fi
+
+sudo launchctl kickstart -k system/"$LABEL" || {
+  echo "ERROR: failed to kickstart ${LABEL}" >&2
+  if [[ -f /var/log/mlx/mlx-openai.err.log ]]; then
+    echo "---- tail /var/log/mlx/mlx-openai.err.log ----" >&2
+    sudo tail -n 60 /var/log/mlx/mlx-openai.err.log >&2 || true
+  fi
+  exit 1
+}
