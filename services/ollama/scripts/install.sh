@@ -60,10 +60,25 @@ ensure_firewall_allow_tcp_port_from_cidr() {
       return 0
     fi
     sudo iptables -I INPUT 1 -p tcp -s "$cidr" --dport "$port" -j ACCEPT
+
+    if ! command -v netfilter-persistent >/dev/null 2>&1; then
+      # Best-effort persistence on Debian/Ubuntu.
+      if command -v apt-get >/dev/null 2>&1 && [ -f /etc/debian_version ]; then
+        note "Installing netfilter-persistent/iptables-persistent for iptables rule persistence..."
+        sudo -E env DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1 || true
+        sudo -E env DEBIAN_FRONTEND=noninteractive apt-get install -y netfilter-persistent iptables-persistent >/dev/null 2>&1 || true
+      fi
+    fi
+
     if command -v netfilter-persistent >/dev/null 2>&1; then
       sudo netfilter-persistent save >/dev/null 2>&1 || true
+      if command -v systemctl >/dev/null 2>&1; then
+        sudo systemctl enable --now netfilter-persistent >/dev/null 2>&1 || true
+      fi
+      note "✓ persisted iptables rules via netfilter-persistent"
+    else
+      note "NOTE: iptables rule may not persist across reboot; install iptables-persistent or netfilter-persistent."
     fi
-    note "NOTE: iptables rule may not persist across reboot unless saved (e.g. netfilter-persistent/iptables-persistent)."
     return 0
   fi
 
