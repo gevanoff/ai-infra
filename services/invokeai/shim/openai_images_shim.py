@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16c"
+_SHIM_BUILD = "2026-01-16d"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -909,6 +909,10 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
     }
 
     enqueue_urls = (
+        # Newer InvokeAI installs may expose v2 APIs.
+        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch",
+        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue",
+        # v1 fallback.
         f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch",
         # Some versions use /enqueue instead of /enqueue_batch.
         f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue",
@@ -916,10 +920,12 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     enqueue_result: Any = None
     last_exc: Optional[HTTPException] = None
+    used_enqueue_url: Optional[str] = None
     for enqueue_url in enqueue_urls:
         try:
             enqueue_result = _http_json("POST", enqueue_url, enqueue_body, timeout=30)
             last_exc = None
+            used_enqueue_url = enqueue_url
             break
         except HTTPException as exc:
             last_exc = exc
@@ -930,10 +936,15 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
     if last_exc is not None:
         raise last_exc
 
+    if used_enqueue_url:
+        logger.info("Enqueued InvokeAI batch via %s", used_enqueue_url)
+
     item_id = _extract_item_id(enqueue_result)
 
     # Poll queue item until completion
     get_item_urls = (
+        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/i/{urllib.parse.quote(str(item_id))}",
+        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/items/{urllib.parse.quote(str(item_id))}",
         f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/i/{urllib.parse.quote(str(item_id))}",
         f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/items/{urllib.parse.quote(str(item_id))}",
     )
