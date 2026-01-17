@@ -190,6 +190,7 @@ for role in $ROLES; do
       --exclude='.git' \
       --exclude='*.pyc' \
       --exclude='__pycache__' \
+      --exclude='env/' --exclude='.venv/' --exclude='venv/' \
       "$AI_INFRA_ROOT/" "$HOSTNAME:${REMOTE_AI_INFRA_ROOT}/"
 
     # Normalize line endings on the remote host (Windows -> macOS/Linux CRLF can break shebangs).
@@ -201,6 +202,8 @@ for role in $ROLES; do
         --exclude='.git' \
         --exclude='*.pyc' \
         --exclude='__pycache__' \
+        --exclude='env/' --exclude='.venv/' --exclude='venv/' \
+        --exclude='Library/' \
         "$GATEWAY_ROOT/" "$HOSTNAME:${REMOTE_GATEWAY_ROOT}/"
 
       ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "find \"${REMOTE_GATEWAY_ROOT}\" -type f -name '*.sh' -exec perl -pi -e 's/\r$//' {} +" || true

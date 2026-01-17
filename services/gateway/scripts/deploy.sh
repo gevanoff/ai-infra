@@ -158,6 +158,7 @@ sudo rsync -a --delete \
   --exclude '.git' \
   --exclude '.gitignore' \
   --exclude '.DS_Store' \
+  --exclude 'Library/' \
   --exclude '.env' --exclude '.env.*' \
   --exclude 'env/' --exclude '.venv/' --exclude 'venv/' \
   --exclude 'data/' --exclude '*.sqlite' --exclude '*.sqlite3' --exclude '*.db' --exclude '*.wal' --exclude '*.shm' \
@@ -168,7 +169,7 @@ sudo rsync -a --delete \
 # ---- install/update Python dependencies ----
 echo "Installing Python dependencies..."
 if [[ -f "${APP_DIR}/app/requirements.freeze.txt" ]]; then
-  sudo -u gateway "${PYTHON_BIN}" -m pip install --quiet --no-warn-script-location -r "${APP_DIR}/app/requirements.freeze.txt"
+  sudo -H -u gateway "${PYTHON_BIN}" -m pip install --quiet --no-warn-script-location -r "${APP_DIR}/app/requirements.freeze.txt"
   echo "Dependencies installed from app/requirements.freeze.txt"
 else
   echo "WARNING: app/requirements.freeze.txt not found, skipping dependency install" >&2
