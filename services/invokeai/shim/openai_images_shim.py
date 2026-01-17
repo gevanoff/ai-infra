@@ -142,6 +142,7 @@ class ShimConfig:
     graph_inputs_format: str
     strict_model: bool
     model_presets_json: Optional[str]
+    enable_debug_endpoints: bool
 
 
 def _get_config() -> ShimConfig:
@@ -167,6 +168,7 @@ def _get_config() -> ShimConfig:
         graph_inputs_format=os.getenv("SHIM_GRAPH_INPUTS_FORMAT", "auto").strip().lower(),
         strict_model=os.getenv("SHIM_STRICT_MODEL", "false").strip().lower() in {"1", "true", "yes"},
         model_presets_json=os.getenv("SHIM_MODEL_PRESETS_JSON"),
+        enable_debug_endpoints=os.getenv("SHIM_ENABLE_DEBUG_ENDPOINTS", "false").strip().lower() in {"1", "true", "yes"},
     )
 
 
@@ -389,59 +391,60 @@ def _http_bytes(url: str, timeout: float = 30) -> bytes:
         raise HTTPException(status_code=502, detail=f"Upstream URL error calling {url}: {e}")
 
 
-def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[dict]:
-    if not model:
-        return None
+def _collect_model_candidates(obj: Any) -> List[dict]:
+    out: List[dict] = []
 
-    model = model.strip()
-    if not model:
-        return None
+    def _looks_like_model(d: dict) -> bool:
+        if not isinstance(d, dict):
+            return False
+        key = d.get("key") or d.get("id") or d.get("model_key")
+        name = d.get("name") or d.get("model") or d.get("model_name")
+        return isinstance(key, str) and bool(key.strip()) and isinstance(name, str) and bool(name.strip())
 
-    candidates: List[dict] = []
+    def _walk(x: Any, depth: int) -> None:
+        if depth <= 0:
+            return
+        if isinstance(x, list):
+            for vv in x:
+                _walk(vv, depth - 1)
+            return
+        if isinstance(x, dict):
+            if _looks_like_model(x):
+                out.append(x)
+            for vv in x.values():
+                _walk(vv, depth - 1)
+
+    _walk(obj, 6)
+    return out
+
+
+def _list_invokeai_models(*, cfg: ShimConfig) -> Tuple[Optional[str], List[dict]]:
+    """Best-effort list of InvokeAI models.
+
+    Returns:
+      (source_url, models)
+    """
+
     models_urls = (
         f"{cfg.invokeai_base_url}/api/v1/models",
         f"{cfg.invokeai_base_url}/api/v1/model/list",
         f"{cfg.invokeai_base_url}/api/v1/model",
         f"{cfg.invokeai_base_url}/api/v1/models/list",
     )
+
     last_error: Optional[HTTPException] = None
-
-    def _collect_candidates(obj: Any) -> List[dict]:
-        out: List[dict] = []
-
-        def _looks_like_model(d: dict) -> bool:
-            if not isinstance(d, dict):
-                return False
-            key = d.get("key") or d.get("id") or d.get("model_key")
-            name = d.get("name") or d.get("model") or d.get("model_name")
-            return isinstance(key, str) and bool(key.strip()) and isinstance(name, str) and bool(name.strip())
-
-        def _walk(x: Any, depth: int) -> None:
-            if depth <= 0:
-                return
-            if isinstance(x, list):
-                for vv in x:
-                    _walk(vv, depth - 1)
-                return
-            if isinstance(x, dict):
-                if _looks_like_model(x):
-                    out.append(x)
-                for vv in x.values():
-                    _walk(vv, depth - 1)
-
-        _walk(obj, 6)
-        return out
 
     for models_url in models_urls:
         try:
             out = _http_json("GET", models_url, payload=None, timeout=20)
         except HTTPException as exc:
             last_error = exc
-            detail = str(exc.detail)
-            if "404" in detail or "Not Found" in detail:
+            if _is_probe_miss(exc):
                 continue
+            # Unexpected upstream error: bubble it up.
             raise
 
+        candidates: List[dict] = []
         if isinstance(out, list):
             candidates = [m for m in out if isinstance(m, dict)]
         elif isinstance(out, dict):
@@ -452,74 +455,75 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
                     break
 
         if not candidates:
-            candidates = _collect_candidates(out)
+            candidates = _collect_model_candidates(out)
         if candidates:
-            break
+            return (models_url, candidates)
 
-    def _discover_via_openapi() -> List[dict]:
-        # Some InvokeAI versions move/rename model listing endpoints.
-        # As a last resort, fetch OpenAPI schema and probe GET endpoints that look model-related.
-        schema_urls = (
-            f"{cfg.invokeai_base_url}/openapi.json",
-            f"{cfg.invokeai_base_url}/api/v1/openapi.json",
-            f"{cfg.invokeai_base_url}/api/v1/openapi",
-        )
+    schema = _fetch_openapi_schema(cfg.invokeai_base_url)
+    if not isinstance(schema, dict):
+        if last_error is not None:
+            raise last_error
+        return (None, [])
 
-        schema: Any = None
-        for schema_url in schema_urls:
-            try:
-                schema = _http_json("GET", schema_url, payload=None, timeout=10)
-                break
-            except HTTPException as exc:
-                detail = str(exc.detail)
-                if "404" in detail or "Not Found" in detail:
-                    continue
-                # If schema fetch fails for other reasons, keep trying other urls.
+    paths = schema.get("paths")
+    if not isinstance(paths, dict):
+        if last_error is not None:
+            raise last_error
+        return (None, [])
+
+    probed: List[str] = []
+    for path, ops in paths.items():
+        if not isinstance(path, str) or not path or "{" in path:
+            continue
+        if "model" not in path.lower():
+            continue
+        if not isinstance(ops, dict) or "get" not in ops:
+            continue
+        probed.append(path)
+
+    probed = sorted(
+        set(probed),
+        key=lambda p: (
+            0 if p.endswith("models") or p.endswith("models/") else 1,
+            len(p),
+            p,
+        ),
+    )
+
+    for path in probed[:12]:
+        url = f"{cfg.invokeai_base_url}{path}"
+        try:
+            out = _http_json("GET", url, payload=None, timeout=20)
+        except HTTPException as exc:
+            last_error = exc
+            if _is_probe_miss(exc):
                 continue
+            continue
+        candidates = _collect_model_candidates(out)
+        if candidates:
+            logger.info("Discovered InvokeAI model list via %s", url)
+            return (url, candidates)
 
-        if not isinstance(schema, dict):
-            return []
+    if last_error is not None:
+        raise last_error
+    return (None, [])
 
-        paths = schema.get("paths")
-        if not isinstance(paths, dict):
-            return []
 
-        probed: List[str] = []
-        for path, ops in paths.items():
-            if not isinstance(path, str) or not path or "{" in path:
-                continue
-            if "model" not in path.lower():
-                continue
-            if not isinstance(ops, dict) or "get" not in ops:
-                continue
-            probed.append(path)
+def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[dict]:
+    if not model:
+        return None
 
-        # Prefer shorter, list-y endpoints and avoid obviously unrelated ones.
-        probed = sorted(
-            set(probed),
-            key=lambda p: (
-                0 if p.endswith("models") or p.endswith("models/") else 1,
-                len(p),
-                p,
-            ),
-        )
+    model = model.strip()
+    if not model:
+        return None
 
-        found: List[dict] = []
-        for path in probed[:12]:
-            url = f"{cfg.invokeai_base_url}{path}"
-            try:
-                out = _http_json("GET", url, payload=None, timeout=20)
-            except HTTPException:
-                continue
-            c = _collect_candidates(out)
-            if c:
-                found = c
-                logger.info("Discovered InvokeAI model list via %s", url)
-                break
-        return found
-
-    if not candidates:
-        candidates = _discover_via_openapi()
+    candidates: List[dict] = []
+    last_error: Optional[HTTPException] = None
+    try:
+        _, candidates = _list_invokeai_models(cfg=cfg)
+    except HTTPException as exc:
+        last_error = exc
+        candidates = []
 
     if not candidates:
         # If model listing is unavailable, leave the graph template's model as-is.
@@ -1394,6 +1398,103 @@ def readyz() -> Dict[str, Any]:
         "shim_save_last_image_path": cfg.save_last_image_path,
         "invokeai_version": version,
     }
+
+
+@app.get("/v1/models")
+def list_models(raw: bool = False) -> Dict[str, Any]:
+    cfg = _get_config()
+
+    presets = _parse_model_presets(cfg.model_presets_json)
+    preset_names = sorted(presets.keys())
+
+    source_url: Optional[str] = None
+    upstream: List[dict] = []
+    upstream_error: Optional[str] = None
+    try:
+        source_url, upstream = _list_invokeai_models(cfg=cfg)
+    except HTTPException as exc:
+        upstream_error = str(exc.detail)
+        upstream = []
+
+    seen: set[str] = set()
+    data: List[Dict[str, Any]] = []
+
+    # Include preset aliases first so they are discoverable by clients.
+    for name in preset_names:
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        data.append(
+            {
+                "id": name,
+                "object": "model",
+                "owned_by": "shim",
+                "metadata": presets.get(name) or presets.get(key) or {},
+            }
+        )
+
+    def _pick_id(m: dict) -> Optional[str]:
+        for k in ("key", "id", "model_key"):
+            v = m.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return None
+
+    def _pick_name(m: dict) -> Optional[str]:
+        for k in ("name", "model_name", "model"):
+            v = m.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return None
+
+    for m in upstream:
+        if not isinstance(m, dict):
+            continue
+        mid = _pick_id(m)
+        if not mid:
+            continue
+        key = mid.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        entry: Dict[str, Any] = {
+            "id": mid,
+            "object": "model",
+            "owned_by": "invokeai",
+        }
+        nm = _pick_name(m)
+        if nm and nm != mid:
+            entry["name"] = nm
+        # Keep a few useful fields if present; clients ignore extras.
+        for extra in ("base", "type", "hash"):
+            v = m.get(extra)
+            if isinstance(v, str) and v.strip():
+                entry.setdefault("metadata", {})[extra] = v.strip()
+        data.append(entry)
+
+    resp: Dict[str, Any] = {"object": "list", "data": data}
+    if raw:
+        resp["shim"] = {
+            "invokeai_base_url": cfg.invokeai_base_url,
+            "source_url": source_url,
+            "upstream_error": upstream_error,
+            "upstream_models_raw": upstream,
+            "preset_names": preset_names,
+        }
+    return resp
+
+
+@app.get("/__debug/upstream/openapi")
+def debug_upstream_openapi() -> Any:
+    cfg = _get_config()
+    if not cfg.enable_debug_endpoints:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    schema = _fetch_openapi_schema(cfg.invokeai_base_url)
+    if schema is None:
+        raise HTTPException(status_code=502, detail="Failed to fetch upstream OpenAPI schema")
+    return schema
 
 
 @app.post("/v1/images/generations")
