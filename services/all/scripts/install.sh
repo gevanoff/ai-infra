@@ -124,6 +124,39 @@ GATEWAY_ROOT="$(resolve_gateway_root)" || {
 EOF
 }
 
+remote_try_resolve_gateway_root_snippet() {
+  cat <<'EOF'
+resolve_gateway_root() {
+  if [ -n "${AI_INFRA_BASE:-}" ]; then
+    if [ -d "${AI_INFRA_BASE}/app" ] && [ -d "${AI_INFRA_BASE}/.git" ]; then
+      printf "%s" "${AI_INFRA_BASE}"
+      return 0
+    fi
+    if [ -d "${AI_INFRA_BASE}/gateway" ]; then
+      printf "%s/gateway" "${AI_INFRA_BASE}"
+      return 0
+    fi
+    if [ "$(basename "${AI_INFRA_BASE}")" = "ai-infra" ] && [ -d "$(dirname "${AI_INFRA_BASE}")/gateway" ]; then
+      printf "%s/gateway" "$(dirname "${AI_INFRA_BASE}")"
+      return 0
+    fi
+  fi
+  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+    if [ -d "$base/gateway" ]; then
+      printf "%s/gateway" "$base"
+      return 0
+    fi
+  done
+  return 1
+}
+
+GATEWAY_ROOT="$(resolve_gateway_root)" || {
+  echo "NOTE: gateway repo not found on this host; skipping gateway update." >&2
+  exit 0
+}
+EOF
+}
+
 ensure_yq() {
   if command -v yq >/dev/null 2>&1; then
     return 0
@@ -208,7 +241,7 @@ cd \"\${AI_INFRA_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull 
     if [[ -n "$remote_gateway_root" ]]; then
       ssh_login_exec "$hostname" "$remote_os" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
     else
-      ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_gateway_root_snippet)
+      ssh_login_exec "$hostname" "$remote_os" "$(remote_try_resolve_gateway_root_snippet)
 cd \"\${GATEWAY_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
     fi
   fi
