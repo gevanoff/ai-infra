@@ -74,3 +74,7 @@ Cross-host checks (driven by `hosts.yaml`):
 - `services/all/scripts/health-check.sh` (simple health endpoints)
 - `services/all/scripts/verify-stack.sh` (functional checks; requires `--token` for gateway)
 - `services/all/scripts/deploy-and-verify.sh` (deploy then verify; supports `--host` and `--check-images`)
+
+Cross-host utilities:
+
+- `services/all/scripts/pull-models.sh` (pull Ollama models fleet-wide from `services/ollama/models/manifest.txt`)
