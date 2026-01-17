@@ -31,6 +31,35 @@ ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 HOSTS_FILE="${REPO_ROOT}/hosts.yaml"
 
+quote_sh() {
+  # Single-quote a string for POSIX-ish shells.
+  local s="$1"
+  s=${s//\'/\'"\'"\'}
+  printf "'%s'" "$s"
+}
+
+ssh_login_exec() {
+  local hostname="$1"
+  local remote_os="$2"
+  local cmd="$3"
+
+  local q
+  q="$(quote_sh "$cmd")"
+
+  if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
+    ssh "$hostname" "bash -lc ${q}"
+    return $?
+  fi
+
+  if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
+    ssh "$hostname" "zsh -lc ${q}"
+    return $?
+  fi
+
+  # Fallback: try bash.
+  ssh "$hostname" "bash -lc ${q}"
+}
+
 ensure_yq() {
   if command -v yq >/dev/null 2>&1; then
     return 0
@@ -69,7 +98,9 @@ run_status() {
 run_status_remote() {
   local host_key="$1"
   local hostname="$2"
-  local role="$3"
+  local remote_os="$3"
+  local role="$4"
+  remote_os="${remote_os:-linux}"
 
   local remote_ai_infra_root=""
   if [[ -n "${AI_INFRA_REMOTE_BASE:-}" ]]; then
@@ -81,11 +112,12 @@ run_status_remote() {
   fi
 
   # Assumes ai-infra is already present on the remote host (deploy-host.sh syncs it).
-  ssh "$hostname" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/status.sh"
+  ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/status.sh"
 }
 
 remote_git_pull() {
   local hostname="$1"
+  local remote_os="$2"
   local remote_ai_infra_root=""
   local remote_gateway_root=""
   if [[ -n "${AI_INFRA_REMOTE_BASE:-}" ]]; then
@@ -99,12 +131,12 @@ remote_git_pull() {
 
   if [[ "$GIT_PULL" == "true" ]]; then
     echo "Updating ai-infra on ${hostname}..." >&2
-    ssh "$hostname" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
   fi
 
   if [[ "$GIT_PULL_GATEWAY" == "true" ]]; then
     echo "Updating gateway on ${hostname}..." >&2
-    ssh "$hostname" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
   fi
 }
 
@@ -117,9 +149,13 @@ if [[ -n "$FILTER_HOST" ]]; then
   ensure_ssh
 
   hostname="$(yq -r ".hosts.${FILTER_HOST}.hostname" "$HOSTS_FILE" 2>/dev/null || true)"
+  remote_os="$(yq -r ".hosts.${FILTER_HOST}.os" "$HOSTS_FILE" 2>/dev/null || true)"
   if [[ -z "$hostname" || "$hostname" == "null" ]]; then
     echo "ERROR: host '$FILTER_HOST' not found in hosts.yaml" >&2
     exit 1
+  fi
+  if [[ -z "$remote_os" || "$remote_os" == "null" ]]; then
+    remote_os="linux"
   fi
   roles="$(yq -r ".hosts.${FILTER_HOST}.roles[]" "$HOSTS_FILE" 2>/dev/null || true)"
   if [[ -z "$roles" ]]; then
@@ -127,11 +163,11 @@ if [[ -n "$FILTER_HOST" ]]; then
     exit 1
   fi
 
-  remote_git_pull "$hostname"
+  remote_git_pull "$hostname" "$remote_os"
   echo "=== status (remote) ${FILTER_HOST} (${hostname}) ==="
   for role in $roles; do
     printf "==== %s ====\n" "$role"
-    if ! run_status_remote "$FILTER_HOST" "$hostname" "$role"; then
+    if ! run_status_remote "$FILTER_HOST" "$hostname" "$remote_os" "$role"; then
       echo "NOTE: ${role} status failed" >&2
     fi
     echo ""

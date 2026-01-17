@@ -78,6 +78,7 @@ Cross-host checks (driven by `hosts.yaml`):
 Remote execution notes:
 
 - For `services/all/scripts/{status,restart,install}.sh --host <name>`, the scripts assume the remote repos live under `${AI_INFRA_BASE:-~/ai}` on the remote host (set `AI_INFRA_BASE` on each host to override), or you can override locally with `AI_INFRA_REMOTE_BASE`.
+- Remote commands run under a login shell (`bash -lc` on Ubuntu, `zsh -lc` on macOS) so normal dotfiles can provide `AI_INFRA_BASE`.
 
 Cross-host utilities:
 
