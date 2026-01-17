@@ -77,10 +77,25 @@ resolve_ai_infra_root() {
       return 0
     fi
   fi
-  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+  for base in "$HOME" "$HOME/ai" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work"; do
     if [ -d "$base/ai-infra" ]; then
       printf "%s/ai-infra" "$base"
       return 0
+    fi
+  done
+
+  # Common convention: repos live under ~/code (or ~/Code) in some nested folder.
+  for parent in "$HOME/code" "$HOME/Code"; do
+    if [ -d "$parent/ai-infra" ]; then
+      printf "%s/ai-infra" "$parent"
+      return 0
+    fi
+    if [ -d "$parent" ]; then
+      for d in "$parent"/*; do
+        [ -d "$d/ai-infra" ] || continue
+        printf "%s/ai-infra" "$d"
+        return 0
+      done
     fi
   done
   return 1
@@ -112,10 +127,24 @@ resolve_gateway_root() {
       return 0
     fi
   fi
-  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+  for base in "$HOME" "$HOME/ai" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work"; do
     if [ -d "$base/gateway" ]; then
       printf "%s/gateway" "$base"
       return 0
+    fi
+  done
+
+  for parent in "$HOME/code" "$HOME/Code"; do
+    if [ -d "$parent/gateway" ]; then
+      printf "%s/gateway" "$parent"
+      return 0
+    fi
+    if [ -d "$parent" ]; then
+      for d in "$parent"/*; do
+        [ -d "$d/gateway" ] || continue
+        printf "%s/gateway" "$d"
+        return 0
+      done
     fi
   done
   return 1
@@ -146,10 +175,24 @@ resolve_gateway_root() {
       return 0
     fi
   fi
-  for base in "$HOME" "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+  for base in "$HOME" "$HOME/ai" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work"; do
     if [ -d "$base/gateway" ]; then
       printf "%s/gateway" "$base"
       return 0
+    fi
+  done
+
+  for parent in "$HOME/code" "$HOME/Code"; do
+    if [ -d "$parent/gateway" ]; then
+      printf "%s/gateway" "$parent"
+      return 0
+    fi
+    if [ -d "$parent" ]; then
+      for d in "$parent"/*; do
+        [ -d "$d/gateway" ] || continue
+        printf "%s/gateway" "$d"
+        return 0
+      done
     fi
   done
   return 1

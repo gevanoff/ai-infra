@@ -117,9 +117,36 @@ for role in $ROLES; do
   
   SERVICE_DIR="$AI_INFRA_ROOT/services/$role"
   DEPLOY_SCRIPT="$SERVICE_DIR/scripts/deploy.sh"
+  RESTART_SCRIPT="$SERVICE_DIR/scripts/restart.sh"
   
   if [ ! -f "$DEPLOY_SCRIPT" ]; then
-    echo "Warning: Deploy script not found: $DEPLOY_SCRIPT"
+    # Many roles (ollama/mlx/nexa) are managed via install/restart scripts and do not need a deploy step.
+    if [ -f "$RESTART_SCRIPT" ]; then
+      echo "No deploy script for ${role}; running restart instead."
+    else
+      echo "No deploy script for ${role}; skipping."
+    fi
+
+    CURRENT_HOST=$(hostname)
+    if [ "$CURRENT_HOST" == "$HOST" ] || [ "$CURRENT_HOST" == "$HOSTNAME" ]; then
+      if [ -f "$RESTART_SCRIPT" ]; then
+        cd "$SERVICE_DIR"
+        ./scripts/restart.sh || true
+      fi
+    else
+      if [ -f "$RESTART_SCRIPT" ]; then
+        REMOTE_BASE="$(resolve_remote_base | tr -d '\r' | tail -n 1)"
+        if [ -z "$REMOTE_BASE" ]; then
+          echo "Error: could not resolve remote base directory on $HOSTNAME" >&2
+          echo "Hint: set AI_INFRA_REMOTE_BASE locally or AI_INFRA_BASE in remote dotfiles." >&2
+          exit 1
+        fi
+        REMOTE_AI_INFRA_ROOT="${REMOTE_BASE%/}/ai-infra"
+        ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "cd \"${REMOTE_AI_INFRA_ROOT}/services/$role\" && ./scripts/restart.sh" || true
+      fi
+    fi
+    echo "✓ $role processed"
+    echo ""
     continue
   fi
   
