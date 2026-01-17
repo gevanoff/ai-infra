@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16a"
+_SHIM_BUILD = "2026-01-16b"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -244,6 +244,71 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
             candidates = _collect_candidates(out)
         if candidates:
             break
+
+    def _discover_via_openapi() -> List[dict]:
+        # Some InvokeAI versions move/rename model listing endpoints.
+        # As a last resort, fetch OpenAPI schema and probe GET endpoints that look model-related.
+        schema_urls = (
+            f"{cfg.invokeai_base_url}/openapi.json",
+            f"{cfg.invokeai_base_url}/api/v1/openapi.json",
+            f"{cfg.invokeai_base_url}/api/v1/openapi",
+        )
+
+        schema: Any = None
+        for schema_url in schema_urls:
+            try:
+                schema = _http_json("GET", schema_url, payload=None, timeout=10)
+                break
+            except HTTPException as exc:
+                detail = str(exc.detail)
+                if "404" in detail or "Not Found" in detail:
+                    continue
+                # If schema fetch fails for other reasons, keep trying other urls.
+                continue
+
+        if not isinstance(schema, dict):
+            return []
+
+        paths = schema.get("paths")
+        if not isinstance(paths, dict):
+            return []
+
+        probed: List[str] = []
+        for path, ops in paths.items():
+            if not isinstance(path, str) or not path or "{" in path:
+                continue
+            if "model" not in path.lower():
+                continue
+            if not isinstance(ops, dict) or "get" not in ops:
+                continue
+            probed.append(path)
+
+        # Prefer shorter, list-y endpoints and avoid obviously unrelated ones.
+        probed = sorted(
+            set(probed),
+            key=lambda p: (
+                0 if p.endswith("models") or p.endswith("models/") else 1,
+                len(p),
+                p,
+            ),
+        )
+
+        found: List[dict] = []
+        for path in probed[:12]:
+            url = f"{cfg.invokeai_base_url}{path}"
+            try:
+                out = _http_json("GET", url, payload=None, timeout=20)
+            except HTTPException:
+                continue
+            c = _collect_candidates(out)
+            if c:
+                found = c
+                logger.info("Discovered InvokeAI model list via %s", url)
+                break
+        return found
+
+    if not candidates:
+        candidates = _discover_via_openapi()
 
     if not candidates:
         # If model listing is unavailable, leave the graph template's model as-is.
