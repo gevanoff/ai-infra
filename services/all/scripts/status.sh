@@ -60,6 +60,54 @@ ssh_login_exec() {
   ssh "$hostname" "bash -lc ${q}"
 }
 
+remote_resolve_ai_infra_root_snippet() {
+  cat <<'EOF'
+resolve_ai_infra_root() {
+  if [ -n "${AI_INFRA_BASE:-}" ] && [ -d "${AI_INFRA_BASE}/ai-infra" ]; then
+    printf "%s/ai-infra" "${AI_INFRA_BASE}"
+    return 0
+  fi
+  for base in "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+    if [ -d "$base/ai-infra" ]; then
+      printf "%s/ai-infra" "$base"
+      return 0
+    fi
+  done
+  return 1
+}
+
+AI_INFRA_ROOT="$(resolve_ai_infra_root)" || {
+  echo "ERROR: could not locate ai-infra repo on this host." >&2
+  echo "Set AI_INFRA_BASE in your dotfiles (login shell), or set AI_INFRA_REMOTE_BASE on the calling machine." >&2
+  exit 2
+}
+EOF
+}
+
+remote_resolve_gateway_root_snippet() {
+  cat <<'EOF'
+resolve_gateway_root() {
+  if [ -n "${AI_INFRA_BASE:-}" ] && [ -d "${AI_INFRA_BASE}/gateway" ]; then
+    printf "%s/gateway" "${AI_INFRA_BASE}"
+    return 0
+  fi
+  for base in "$HOME/ai" "$HOME/code" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace" "$HOME/work" "$HOME/code/VScode" "$HOME/code/vscode"; do
+    if [ -d "$base/gateway" ]; then
+      printf "%s/gateway" "$base"
+      return 0
+    fi
+  done
+  return 1
+}
+
+GATEWAY_ROOT="$(resolve_gateway_root)" || {
+  echo "ERROR: could not locate gateway repo on this host." >&2
+  echo "Set AI_INFRA_BASE in your dotfiles (login shell), or set AI_INFRA_REMOTE_BASE on the calling machine." >&2
+  exit 2
+}
+EOF
+}
+
 ensure_yq() {
   if command -v yq >/dev/null 2>&1; then
     return 0
@@ -107,12 +155,16 @@ run_status_remote() {
     local remote_base="${AI_INFRA_REMOTE_BASE}"
     remote_ai_infra_root="${remote_base%/}/ai-infra"
   else
-    # Evaluate AI_INFRA_BASE on the remote host (fallback to ~/ai).
-    remote_ai_infra_root='"${AI_INFRA_BASE:-~/ai}"/ai-infra'
+    remote_ai_infra_root=""
   fi
 
   # Assumes ai-infra is already present on the remote host (deploy-host.sh syncs it).
-  ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/status.sh"
+  if [[ -n "$remote_ai_infra_root" ]]; then
+    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/status.sh"
+  else
+    ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_ai_infra_root_snippet)
+cd \"\${AI_INFRA_ROOT}/services/${role}\" && ./scripts/status.sh"
+  fi
 }
 
 remote_git_pull() {
@@ -125,18 +177,28 @@ remote_git_pull() {
     remote_ai_infra_root="${remote_base%/}/ai-infra"
     remote_gateway_root="${remote_base%/}/gateway"
   else
-    remote_ai_infra_root='"${AI_INFRA_BASE:-~/ai}"/ai-infra'
-    remote_gateway_root='"${AI_INFRA_BASE:-~/ai}"/gateway'
+    remote_ai_infra_root=""
+    remote_gateway_root=""
   fi
 
   if [[ "$GIT_PULL" == "true" ]]; then
     echo "Updating ai-infra on ${hostname}..." >&2
-    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    if [[ -n "$remote_ai_infra_root" ]]; then
+      ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    else
+      ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_ai_infra_root_snippet)
+cd \"\${AI_INFRA_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    fi
   fi
 
   if [[ "$GIT_PULL_GATEWAY" == "true" ]]; then
     echo "Updating gateway on ${hostname}..." >&2
-    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    if [[ -n "$remote_gateway_root" ]]; then
+      ssh_login_exec "$hostname" "$remote_os" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    else
+      ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_gateway_root_snippet)
+cd \"\${GATEWAY_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+    fi
   fi
 }
 
