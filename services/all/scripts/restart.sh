@@ -2,12 +2,22 @@
 set -euo pipefail
 
 FILTER_HOST=""
+GIT_PULL=false
+GIT_PULL_GATEWAY=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --host)
       FILTER_HOST="$2"
       shift 2
+      ;;
+    --git-pull)
+      GIT_PULL=true
+      shift
+      ;;
+    --git-pull-gateway)
+      GIT_PULL_GATEWAY=true
+      shift
       ;;
     *)
       echo "Unknown option: $1" >&2
@@ -64,6 +74,23 @@ run_restart_remote() {
   ssh "$hostname" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/restart.sh"
 }
 
+remote_git_pull() {
+  local hostname="$1"
+  local remote_base="${AI_INFRA_REMOTE_BASE:-~/ai}"
+  local remote_ai_infra_root="${remote_base%/}/ai-infra"
+  local remote_gateway_root="${remote_base%/}/gateway"
+
+  if [[ "$GIT_PULL" == "true" ]]; then
+    echo "Updating ai-infra on ${hostname}..." >&2
+    ssh "$hostname" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+  fi
+
+  if [[ "$GIT_PULL_GATEWAY" == "true" ]]; then
+    echo "Updating gateway on ${hostname}..." >&2
+    ssh "$hostname" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+  fi
+}
+
 echo "Restarting services for this host..." >&2
 
 if [[ -n "$FILTER_HOST" ]]; then
@@ -85,6 +112,7 @@ if [[ -n "$FILTER_HOST" ]]; then
     exit 1
   fi
 
+  remote_git_pull "$hostname"
   echo "=== restart (remote) ${FILTER_HOST} (${hostname}) ===" >&2
   for role in $roles; do
     printf "==== %s ====\n" "$role" >&2
