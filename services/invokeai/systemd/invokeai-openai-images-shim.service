@@ -11,13 +11,13 @@ WorkingDirectory=/var/lib/invokeai/openai_images_shim
 
 Environment="PATH=/var/lib/invokeai/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="SHIM_PORT=9091"
+
+# Configure the shim via a simple env file instead of systemd drop-in overrides.
+# This file is provisioned by ai-infra deploy/install scripts.
+EnvironmentFile=-/var/lib/invokeai/openai_images_shim/shim.env
+
+# Safe default if the env file is missing.
 Environment="SHIM_MODE=stub"
-Environment="INVOKEAI_BASE_URL=http://127.0.0.1:9090"
-Environment="INVOKEAI_QUEUE_ID=default"
-Environment="INVOKEAI_DEFAULT_MODEL=Juggernaut XL v9"
-Environment="SHIM_MODEL_INPUT_MODE=id"
-Environment="SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json"
-Environment="SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48"
 
 ExecStart=/var/lib/invokeai/venv/bin/python -m uvicorn openai_images_shim:app --host 127.0.0.1 --port 9091
 

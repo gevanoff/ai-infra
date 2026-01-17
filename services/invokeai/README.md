@@ -147,25 +147,32 @@ This repo deploys a default template to:
 /var/lib/invokeai/openai_images_shim/graph_template.json
 ```
 
-Enable via a systemd override on ada2:
+Configure via an env file (recommended):
+
+- The shim reads `/var/lib/invokeai/openai_images_shim/shim.env` (installed from `shim/shim.env.example`).
+- Edit that file to enable real mode and set the graph/output node.
+
+Example `shim.env` values:
 
 ```bash
-sudo systemctl edit invokeai-openai-images-shim
+SHIM_MODE=invokeai_queue
+SHIM_MODEL_INPUT_MODE=id
+SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json
+SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48
+# Optional debug:
+# SHIM_DEBUG_GRAPH_PATH=/var/lib/invokeai/openai_images_shim/debug_graph.json
 ```
 
-Add:
-
-```ini
-[Service]
-Environment="SHIM_MODE=invokeai_queue"
-Environment="SHIM_GRAPH_TEMPLATE_PATH=/var/lib/invokeai/openai_images_shim/graph_template.json"
-# Output node id for the default SDXL template (the l2i node)
-Environment="SHIM_OUTPUT_NODE_ID=63e91020-83b2-4f35-b174-ad9692aabb48"
-```
-
-Then restart:
+Restart after changes:
 
 ```bash
+sudo systemctl restart invokeai-openai-images-shim
+```
+
+If you previously used `systemctl edit` overrides, remove them:
+
+```bash
+sudo systemctl revert invokeai-openai-images-shim
 sudo systemctl daemon-reload
 sudo systemctl restart invokeai-openai-images-shim
 ```

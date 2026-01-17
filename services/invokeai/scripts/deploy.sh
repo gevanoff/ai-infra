@@ -69,6 +69,19 @@ if [ -f "$SERVICE_DIR/shim/openai_images_shim.py" ]; then
   fi
 fi
 
+# Provision shim env file (do not overwrite local changes)
+if [ -f "$SERVICE_DIR/shim/shim.env.example" ]; then
+  $SUDO mkdir -p /var/lib/invokeai/openai_images_shim
+  if [ ! -f /var/lib/invokeai/openai_images_shim/shim.env ]; then
+    echo "  Installing OpenAI images shim env file..."
+    $SUDO cp "$SERVICE_DIR/shim/shim.env.example" /var/lib/invokeai/openai_images_shim/shim.env
+    $SUDO chown invokeai:invokeai /var/lib/invokeai/openai_images_shim/shim.env
+    echo "  ✓ Shim env installed"
+  else
+    echo "  ✓ Shim env unchanged"
+  fi
+fi
+
 # Update optional graph template
 if [ -f "$SERVICE_DIR/shim/graph_template.json" ]; then
   $SUDO mkdir -p /var/lib/invokeai/openai_images_shim

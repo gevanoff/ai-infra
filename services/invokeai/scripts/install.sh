@@ -94,6 +94,14 @@ cp "$SCRIPT_DIR/../shim/openai_images_shim.py" /var/lib/invokeai/openai_images_s
 if [ -f "$SCRIPT_DIR/../shim/graph_template.json" ]; then
   cp "$SCRIPT_DIR/../shim/graph_template.json" /var/lib/invokeai/openai_images_shim/graph_template.json
 fi
+
+# Provision shim env file (do not overwrite local changes)
+if [ -f "$SCRIPT_DIR/../shim/shim.env.example" ]; then
+  if [ ! -f /var/lib/invokeai/openai_images_shim/shim.env ]; then
+    cp "$SCRIPT_DIR/../shim/shim.env.example" /var/lib/invokeai/openai_images_shim/shim.env
+  fi
+fi
+
 chown -R invokeai:invokeai /var/lib/invokeai/openai_images_shim
 echo "✓ Shim installed at /var/lib/invokeai/openai_images_shim"
 echo ""
