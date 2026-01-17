@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16h"
+_SHIM_BUILD = "2026-01-16i"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -80,6 +80,7 @@ class ShimConfig:
     output_node_id: Optional[str]
     default_model: Optional[str]
     debug_graph_path: Optional[str]
+    save_last_image_path: Optional[str]
     model_input_mode: str
     graph_inputs_format: str
     strict_model: bool
@@ -97,6 +98,7 @@ def _get_config() -> ShimConfig:
         output_node_id=os.getenv("SHIM_OUTPUT_NODE_ID"),
         default_model=os.getenv("INVOKEAI_DEFAULT_MODEL"),
         debug_graph_path=os.getenv("SHIM_DEBUG_GRAPH_PATH"),
+        save_last_image_path=os.getenv("SHIM_SAVE_LAST_IMAGE_PATH"),
         # Newer InvokeAI queue validation tends to be strict about model inputs.
         # Using ids is the most portable representation across versions.
         model_input_mode=os.getenv("SHIM_MODEL_INPUT_MODE", "id").strip().lower(),
@@ -249,15 +251,30 @@ def _discover_queue_enqueue_endpoints(base_url: str, queue_id: str) -> List[Tupl
 def _log_startup() -> None:
     cfg = _get_config()
     logger.info(
-        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s model_mode=%s graph_inputs=%s",
+        "Shim startup build=%s mode=%s graph=%s output_node=%s debug_graph=%s save_last_image=%s model_mode=%s graph_inputs=%s",
         _SHIM_BUILD,
         cfg.mode,
         cfg.graph_template_path,
         cfg.output_node_id,
         cfg.debug_graph_path,
+        cfg.save_last_image_path,
         cfg.model_input_mode,
         cfg.graph_inputs_format,
     )
+
+
+def _best_effort_write_last_image(image_bytes: bytes, path: str) -> None:
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        tmp_path = f"{path}.tmp.{os.getpid()}"
+        with open(tmp_path, "wb") as f:
+            f.write(image_bytes)
+        os.replace(tmp_path, path)
+    except Exception:
+        logger.exception("Failed to write SHIM_SAVE_LAST_IMAGE_PATH=%s", path)
 
 
 # 1x1 PNG (transparent)
@@ -1197,6 +1214,9 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
                 raise last_exc
             if image_bytes is None:
                 raise HTTPException(status_code=502, detail="InvokeAI did not return image bytes")
+
+            if cfg.save_last_image_path:
+                _best_effort_write_last_image(image_bytes, cfg.save_last_image_path)
             return base64.b64encode(image_bytes).decode("ascii")
 
         if status == "failed":
@@ -1291,6 +1311,7 @@ def readyz() -> Dict[str, Any]:
         "shim_model_input_mode": cfg.model_input_mode,
         "shim_graph_inputs_format": cfg.graph_inputs_format,
         "shim_graph_inputs_effective": effective_fmt,
+        "shim_save_last_image_path": cfg.save_last_image_path,
         "invokeai_version": version,
     }
 
