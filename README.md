@@ -73,7 +73,7 @@ Cross-host checks (driven by `hosts.yaml`):
 
 - `services/all/scripts/health-check.sh` (simple health endpoints)
 - `services/all/scripts/verify-stack.sh` (functional checks; requires `--token` for gateway)
-- `services/all/scripts/deploy-and-verify.sh` (deploy then verify; supports `--host` and `--check-images`)
+- `services/all/scripts/deploy-and-verify.sh` (deploy then verify; role-aware restarts for non-`deploy.sh` roles; supports `--host`, `--check-images`, `--no-role-restarts`; token needed only if gateway is in scope)
 
 Remote execution notes:
 
