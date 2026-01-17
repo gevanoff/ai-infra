@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16f"
+_SHIM_BUILD = "2026-01-16g"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -1070,10 +1070,24 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         if status == "failed":
             error_type = queue_item.get("error_type")
             error_message = queue_item.get("error_message")
+            error_payload = {
+                k: queue_item.get(k)
+                for k in (
+                    "error_type",
+                    "error_message",
+                    "error_traceback",
+                    "error_details",
+                )
+                if queue_item.get(k) is not None
+            }
             dumped: Optional[str] = None
             if not cfg.debug_graph_path:
                 try:
-                    dumped = f"/tmp/openai_images_shim_graph_{int(time.time() * 1000)}.json"
+                    # Note: the systemd unit uses PrivateTmp=true, so /tmp is not host-visible.
+                    # Write into the shim working directory instead.
+                    dumped = (
+                        f"/var/lib/invokeai/openai_images_shim/failed_graph_{int(time.time() * 1000)}.json"
+                    )
                     with open(dumped, "w", encoding="utf-8") as f:
                         json.dump(graph_api, f, indent=2)
                 except Exception:
@@ -1082,7 +1096,10 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
             suffix = f" (graph_dump={dumped})" if dumped else ""
             raise HTTPException(
                 status_code=502,
-                detail=f"InvokeAI generation failed: {error_type}: {error_message}{suffix}",
+                detail=(
+                    f"InvokeAI generation failed: {error_type}: {error_message}{suffix}"
+                    + (f" error_payload={error_payload}" if error_payload else "")
+                ),
             )
 
         if status == "canceled":
