@@ -2,7 +2,7 @@
 set -euo pipefail
 
 FILTER_HOST=""
-GIT_PULL=false
+GIT_PULL="auto"
 GIT_PULL_GATEWAY=false
 
 while [[ $# -gt 0 ]]; do
@@ -12,7 +12,11 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --git-pull)
-      GIT_PULL=true
+      GIT_PULL="true"
+      shift
+      ;;
+    --no-git-pull)
+      GIT_PULL="false"
       shift
       ;;
     --git-pull-gateway)
@@ -25,6 +29,16 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$FILTER_HOST" && "$GIT_PULL" == "auto" ]]; then
+  # Default remote operations to pulling latest scripts so the calling machine
+  # doesn't depend on whatever happens to be checked out on the host.
+  GIT_PULL="true"
+fi
+
+if [[ -z "$FILTER_HOST" && "$GIT_PULL" == "auto" ]]; then
+  GIT_PULL="false"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

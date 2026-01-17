@@ -12,6 +12,12 @@ note() {
   echo "$*" >&2
 }
 
+if [[ $# -gt 0 ]]; then
+  note "ERROR: this per-role installer does not accept arguments: $*"
+  note "Hint: use services/all/scripts/install.sh --host <host> for remote installs."
+  exit 2
+fi
+
 ensure_firewall_allow_tcp_port_from_cidr() {
   local cidr="$1"
   local port="$2"
@@ -104,16 +110,38 @@ fi
 if [[ "$OS" == "Linux" ]]; then
   # Prefer systemd if present.
   if command -v systemctl >/dev/null 2>&1; then
-    if ! command -v ollama >/dev/null 2>&1; then
-      echo "ERROR: ollama binary not found in PATH." >&2
-      echo "Hint: install Ollama (Ubuntu) then re-run this script." >&2
-      echo "  - https://ollama.com/download" >&2
-      exit 1
-    fi
-
+    OLLAMA_LISTEN_HOST="${OLLAMA_LISTEN_HOST:-0.0.0.0}"
+    OLLAMA_LISTEN_PORT="${OLLAMA_LISTEN_PORT:-11434}"
     OLLAMA_FIREWALL_CIDR="${OLLAMA_FIREWALL_CIDR:-10.10.22.0/24}"
     OLLAMA_FIREWALL_PORT="${OLLAMA_FIREWALL_PORT:-11434}"
     OLLAMA_SKIP_FIREWALL="${OLLAMA_SKIP_FIREWALL:-0}"
+    OLLAMA_SKIP_INSTALL="${OLLAMA_SKIP_INSTALL:-0}"
+
+    if ! command -v ollama >/dev/null 2>&1; then
+      if [[ "$OLLAMA_SKIP_INSTALL" == "1" ]]; then
+        echo "ERROR: ollama binary not found in PATH." >&2
+        echo "Hint: install Ollama (Ubuntu) then re-run this script." >&2
+        echo "  - https://ollama.com/download" >&2
+        exit 1
+      fi
+
+      if command -v curl >/dev/null 2>&1; then
+        note "Installing ollama (Linux) via https://ollama.com/install.sh ..."
+        curl -fsSL https://ollama.com/install.sh | sudo -E bash
+      else
+        echo "ERROR: ollama binary not found, and curl is not available for auto-install." >&2
+        echo "Hint: install Ollama manually (https://ollama.com/download) or install curl then re-run." >&2
+        exit 1
+      fi
+    fi
+
+    # Bind Ollama to the requested listen address via a systemd drop-in.
+    # This is required for LAN access (0.0.0.0) and safer than editing unit files.
+    sudo mkdir -p /etc/systemd/system/ollama.service.d
+    {
+      echo "[Service]"
+      echo "Environment=\"OLLAMA_HOST=${OLLAMA_LISTEN_HOST}:${OLLAMA_LISTEN_PORT}\""
+    } | sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null
 
     sudo systemctl daemon-reload >/dev/null 2>&1 || true
     sudo systemctl enable --now ollama >/dev/null 2>&1 || sudo systemctl restart ollama
@@ -125,9 +153,9 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 
     if command -v ss >/dev/null 2>&1; then
-      if ss -ltnH "sport = :${OLLAMA_FIREWALL_PORT}" 2>/dev/null | grep -qE '(127\.0\.0\.1|\[::1\]):'"${OLLAMA_FIREWALL_PORT}"; then
-        note "NOTE: ollama appears bound to loopback for tcp/${OLLAMA_FIREWALL_PORT}; LAN clients will not reach it even with firewall open."
-        note "      Set OLLAMA_HOST=0.0.0.0:${OLLAMA_FIREWALL_PORT} in the ollama systemd environment and restart if LAN access is intended."
+      if ss -ltnH "sport = :${OLLAMA_LISTEN_PORT}" 2>/dev/null | grep -qE '(127\\.0\\.0\\.1|\\[::1\\]):'"${OLLAMA_LISTEN_PORT}"; then
+        note "NOTE: ollama appears bound to loopback for tcp/${OLLAMA_LISTEN_PORT}; LAN clients will not reach it even with firewall open."
+        note "      This script writes a systemd override for OLLAMA_HOST; verify it took effect with: systemctl cat ollama"
       fi
     fi
 
