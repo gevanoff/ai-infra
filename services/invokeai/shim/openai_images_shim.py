@@ -195,6 +195,32 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
     )
     last_error: Optional[HTTPException] = None
 
+    def _collect_candidates(obj: Any) -> List[dict]:
+        out: List[dict] = []
+
+        def _looks_like_model(d: dict) -> bool:
+            if not isinstance(d, dict):
+                return False
+            key = d.get("key") or d.get("id") or d.get("model_key")
+            name = d.get("name") or d.get("model") or d.get("model_name")
+            return isinstance(key, str) and bool(key.strip()) and isinstance(name, str) and bool(name.strip())
+
+        def _walk(x: Any, depth: int) -> None:
+            if depth <= 0:
+                return
+            if isinstance(x, list):
+                for vv in x:
+                    _walk(vv, depth - 1)
+                return
+            if isinstance(x, dict):
+                if _looks_like_model(x):
+                    out.append(x)
+                for vv in x.values():
+                    _walk(vv, depth - 1)
+
+        _walk(obj, 6)
+        return out
+
     for models_url in models_urls:
         try:
             out = _http_json("GET", models_url, payload=None, timeout=20)
@@ -213,25 +239,66 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
                 if isinstance(maybe, list):
                     candidates = [m for m in maybe if isinstance(m, dict)]
                     break
+
+        if not candidates:
+            candidates = _collect_candidates(out)
         if candidates:
             break
 
     if not candidates:
         # If model listing is unavailable, leave the graph template's model as-is.
         # Some InvokeAI deployments do not expose /api/v1/models.
+        if last_error is not None:
+            logger.warning("InvokeAI model list unavailable; proceeding with template model (%s)", last_error.detail)
+        else:
+            logger.warning("InvokeAI model list unavailable; proceeding with template model")
         return None
 
-    def _matches(item: dict, needle: str) -> bool:
-        for k in ("key", "name", "id", "model"):
+    needle = model.strip()
+    needle_l = needle.lower()
+
+    def _strings(item: dict) -> List[str]:
+        vals: List[str] = []
+        for k in (
+            "key",
+            "id",
+            "model_key",
+            "name",
+            "model",
+            "model_name",
+            "modelName",
+        ):
             v = item.get(k)
             if isinstance(v, str) and v.strip():
-                if v == needle:
-                    return True
-                if v.lower() == needle.lower():
-                    return True
-        return False
+                vals.append(v.strip())
+        return vals
 
-    match = next((m for m in candidates if _matches(m, model)), None)
+    def _score(item: dict) -> int:
+        svals = _strings(item)
+        best = 0
+        for v in svals:
+            if v == needle:
+                best = max(best, 100)
+            vl = v.lower()
+            if vl == needle_l:
+                best = max(best, 90)
+            if needle_l in vl or vl in needle_l:
+                best = max(best, 60)
+        return best
+
+    match = None
+    best_score = 0
+    for m in candidates:
+        if not isinstance(m, dict):
+            continue
+        sc = _score(m)
+        if sc > best_score:
+            match = m
+            best_score = sc
+
+    if best_score < 60:
+        match = None
+
     if not match:
         # In practice, callers (e.g. the gateway) may send a model name that doesn't match
         # InvokeAI's internal registry keys. Default behavior is best-effort: keep the
@@ -245,7 +312,27 @@ def _resolve_model_info(model: Optional[str], *, cfg: ShimConfig) -> Optional[di
         return None
 
     # Normalize to the minimal shape used by workflow exports.
-    normalized = {k: match.get(k) for k in ("key", "hash", "name", "base", "type") if k in match}
+    normalized: Dict[str, Any] = {}
+    # Prefer a stable key/id.
+    normalized_key = match.get("key") or match.get("model_key") or match.get("id")
+    if isinstance(normalized_key, str) and normalized_key.strip():
+        normalized["key"] = normalized_key.strip()
+    # Common descriptive fields (best-effort; InvokeAI ignores extras in most shapes).
+    for src, dst in (
+        ("hash", "hash"),
+        ("name", "name"),
+        ("model_name", "name"),
+        ("model", "name"),
+        ("base", "base"),
+        ("base_model", "base"),
+        ("type", "type"),
+        ("model_type", "type"),
+    ):
+        v = match.get(src)
+        if dst not in normalized and isinstance(v, str) and v.strip():
+            normalized[dst] = v.strip()
+
+    logger.info("Resolved InvokeAI model %r -> key=%r", model, normalized.get("key"))
     return normalized or match
 
 
