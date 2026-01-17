@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16b"
+_SHIM_BUILD = "2026-01-16c"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -555,14 +555,27 @@ def _apply_invokeai_workflow_overrides(
         def _normalize_model_value(value: Any) -> Any:
             # Workflow exports usually store model selection as an object with a "key".
             # InvokeAI queue validation (6.x) can be strict; the most compatible representation
-            # tends to be the minimal object: {"key": "..."}.
+            # tends to be the workflow-style object: {key, hash, name, base, type}.
             if isinstance(value, dict):
-                key = value.get("key") or value.get("id")
-                name = value.get("name")
+                key = value.get("key") or value.get("id") or value.get("model_key")
+                name = value.get("name") or value.get("model") or value.get("model_name")
+                hash_v = value.get("hash")
+                base = value.get("base") or value.get("base_model")
+                typ = value.get("type") or value.get("model_type")
                 if model_input_mode == "id":
                     if isinstance(key, str) and key.strip():
-                        return {"key": key.strip()}
+                        out: Dict[str, Any] = {"key": key.strip()}
+                        if isinstance(hash_v, str) and hash_v.strip():
+                            out["hash"] = hash_v.strip()
+                        if isinstance(name, str) and name.strip():
+                            out["name"] = name.strip()
+                        if isinstance(base, str) and base.strip():
+                            out["base"] = base.strip()
+                        if isinstance(typ, str) and typ.strip():
+                            out["type"] = typ.strip()
+                        return out
                     if isinstance(name, str) and name.strip():
+                        # Best-effort if we cannot resolve a key.
                         return {"name": name.strip()}
                     return value
                 if model_input_mode == "name":
@@ -847,8 +860,13 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
                 missing = True
             elif isinstance(model_value, str) and not model_value.strip():
                 missing = True
-            elif isinstance(model_value, dict) and not model_value:
-                missing = True
+            elif isinstance(model_value, dict):
+                if not model_value:
+                    missing = True
+                elif cfg.model_input_mode == "id":
+                    key = model_value.get("key") if isinstance(model_value.get("key"), str) else None
+                    if not key or not key.strip():
+                        missing = True
 
             if missing:
                 raise HTTPException(
