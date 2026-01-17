@@ -53,6 +53,54 @@ if [ "$HOSTNAME" == "null" ]; then
   exit 1
 fi
 
+# Get OS for this host (used for remote login shell selection)
+REMOTE_OS=$(yq ".hosts.$HOST.os" "$HOSTS_FILE")
+if [ "$REMOTE_OS" == "null" ] || [ -z "$REMOTE_OS" ]; then
+  REMOTE_OS="linux"
+fi
+
+quote_sh() {
+  # Single-quote a string for POSIX-ish shells.
+  local s="$1"
+  s=${s//\'/\'"\'"\'}
+  printf "'%s'" "$s"
+}
+
+ssh_login_exec() {
+  local hostname="$1"
+  local remote_os="$2"
+  local cmd="$3"
+
+  # On Ubuntu/Linux, ensure ~/.profile is loaded.
+  if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
+    cmd="if [ -f ~/.profile ]; then . ~/.profile; fi; ${cmd}"
+  fi
+
+  local q
+  q="$(quote_sh "$cmd")"
+
+  if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
+    ssh "$hostname" "bash -lc ${q}"
+    return $?
+  fi
+
+  if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
+    ssh "$hostname" "zsh -lc ${q}"
+    return $?
+  fi
+
+  ssh "$hostname" "bash -lc ${q}"
+}
+
+resolve_remote_base() {
+  # Prefer a local override; otherwise ask the remote host (login shell) for AI_INFRA_BASE.
+  if [ -n "${AI_INFRA_REMOTE_BASE:-}" ]; then
+    echo "$AI_INFRA_REMOTE_BASE"
+    return 0
+  fi
+  ssh_login_exec "$HOSTNAME" "$REMOTE_OS" 'echo "${AI_INFRA_BASE:-$HOME/ai}"'
+}
+
 # Get roles for this host
 ROLES=$(yq ".hosts.$HOST.roles[]" "$HOSTS_FILE")
 if [ -z "$ROLES" ]; then
@@ -87,11 +135,16 @@ for role in $ROLES; do
     # Remote deployment via SSH
     echo "Deploying remotely to $HOSTNAME..."
 
-    # Remote repo layout assumptions mirror local:
+    # Remote repo layout:
     #   <remote_base>/ai-infra
     #   <remote_base>/gateway
-    # Override with AI_INFRA_REMOTE_BASE, defaults to ~/ai
-    REMOTE_BASE="${AI_INFRA_REMOTE_BASE:-~/ai}"
+    # remote_base comes from local AI_INFRA_REMOTE_BASE override, else remote AI_INFRA_BASE (login shell), else $HOME/ai.
+    REMOTE_BASE="$(resolve_remote_base | tr -d '\r' | tail -n 1)"
+    if [ -z "$REMOTE_BASE" ]; then
+      echo "Error: could not resolve remote base directory on $HOSTNAME" >&2
+      echo "Hint: set AI_INFRA_REMOTE_BASE locally or AI_INFRA_BASE in remote dotfiles." >&2
+      exit 1
+    fi
     REMOTE_AI_INFRA_ROOT="${REMOTE_BASE%/}/ai-infra"
     REMOTE_GATEWAY_ROOT="${REMOTE_BASE%/}/gateway"
 
@@ -103,7 +156,7 @@ for role in $ROLES; do
     fi
 
     # Ensure remote base exists
-    ssh "$HOSTNAME" "mkdir -p ${REMOTE_BASE}" || true
+    ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "mkdir -p \"${REMOTE_BASE}\"" || true
 
     # Sync ai-infra
     rsync -az --delete \
@@ -122,7 +175,7 @@ for role in $ROLES; do
     fi
 
     # Then run the deploy script on the remote host
-    ssh "$HOSTNAME" "cd ${REMOTE_AI_INFRA_ROOT}/services/$role && ./scripts/deploy.sh"
+    ssh_login_exec "$HOSTNAME" "$REMOTE_OS" "cd \"${REMOTE_AI_INFRA_ROOT}/services/$role\" && ./scripts/deploy.sh"
   fi
   
   echo "✓ $role deployed"
