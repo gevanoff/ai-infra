@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="InvokeAI OpenAI Images Shim", version="0.1")
 logger = logging.getLogger("uvicorn.error")
-_SHIM_BUILD = "2026-01-16d"
+_SHIM_BUILD = "2026-01-16e"
 
 
 def _shim_file_sha256_prefix() -> Optional[str]:
@@ -109,6 +109,76 @@ def _is_not_found(exc: HTTPException) -> bool:
         return "HTTP error 404" in str(exc.detail)
     except Exception:
         return False
+
+
+def _is_probe_miss(exc: HTTPException) -> bool:
+    # Treat 404/405 as "keep trying" when probing candidate endpoints.
+    try:
+        s = str(exc.detail)
+        return ("HTTP error 404" in s) or ("HTTP error 405" in s) or ("Not Found" in s)
+    except Exception:
+        return False
+
+
+def _fetch_openapi_schema(base_url: str) -> Optional[dict]:
+    schema_urls = (
+        f"{base_url}/openapi.json",
+        f"{base_url}/api/v1/openapi.json",
+        f"{base_url}/api/v1/openapi",
+        f"{base_url}/api/v2/openapi.json",
+        f"{base_url}/api/v2/openapi",
+    )
+    for schema_url in schema_urls:
+        try:
+            out = _http_json("GET", schema_url, payload=None, timeout=10)
+        except HTTPException as exc:
+            if _is_probe_miss(exc):
+                continue
+            continue
+        if isinstance(out, dict):
+            return out
+    return None
+
+
+def _discover_queue_enqueue_endpoints(base_url: str, queue_id: str) -> List[Tuple[str, str]]:
+    """Return list of (method, url) for enqueue endpoints discovered via OpenAPI."""
+    schema = _fetch_openapi_schema(base_url)
+    if not isinstance(schema, dict):
+        return []
+    paths = schema.get("paths")
+    if not isinstance(paths, dict):
+        return []
+
+    discovered: List[Tuple[str, str]] = []
+    for path, ops in paths.items():
+        if not isinstance(path, str) or not path:
+            continue
+        if "enqueue" not in path.lower():
+            continue
+        if not isinstance(ops, dict):
+            continue
+        for method in ("post", "put", "patch"):
+            if method not in ops:
+                continue
+            # Fill common placeholder variants.
+            url = f"{base_url}{path}"
+            url = url.replace("{queue_id}", urllib.parse.quote(queue_id))
+            url = url.replace("{queueId}", urllib.parse.quote(queue_id))
+            url = url.replace("{queue}", urllib.parse.quote(queue_id))
+            discovered.append((method.upper(), url))
+
+    # Prefer v2-like paths and enqueue_batch first.
+    def _rank(item: Tuple[str, str]) -> Tuple[int, int, int, str]:
+        method, url = item
+        u = url.lower()
+        return (
+            0 if "/api/v2/" in u else 1,
+            0 if "enqueue_batch" in u else 1,
+            0 if method == "POST" else 1,
+            url,
+        )
+
+    return sorted(discovered, key=_rank)
 
 
 @app.on_event("startup")
@@ -908,36 +978,37 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         },
     }
 
-    enqueue_urls = (
-        # Newer InvokeAI installs may expose v2 APIs.
-        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch",
-        f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue",
-        # v1 fallback.
-        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch",
-        # Some versions use /enqueue instead of /enqueue_batch.
-        f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue",
-    )
+    discovered = _discover_queue_enqueue_endpoints(cfg.invokeai_base_url, cfg.queue_id)
+    if discovered:
+        enqueue_candidates: List[Tuple[str, str]] = discovered
+    else:
+        enqueue_candidates = [
+            ("POST", f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch"),
+            ("POST", f"{cfg.invokeai_base_url}/api/v2/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue"),
+            ("POST", f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue_batch"),
+            ("POST", f"{cfg.invokeai_base_url}/api/v1/queue/{urllib.parse.quote(cfg.queue_id)}/enqueue"),
+        ]
 
     enqueue_result: Any = None
     last_exc: Optional[HTTPException] = None
-    used_enqueue_url: Optional[str] = None
-    for enqueue_url in enqueue_urls:
+    used_enqueue: Optional[Tuple[str, str]] = None
+    for method, enqueue_url in enqueue_candidates:
         try:
-            enqueue_result = _http_json("POST", enqueue_url, enqueue_body, timeout=30)
+            enqueue_result = _http_json(method, enqueue_url, enqueue_body, timeout=30)
             last_exc = None
-            used_enqueue_url = enqueue_url
+            used_enqueue = (method, enqueue_url)
             break
         except HTTPException as exc:
             last_exc = exc
-            if _is_not_found(exc):
+            if _is_probe_miss(exc):
                 continue
             raise
 
     if last_exc is not None:
         raise last_exc
 
-    if used_enqueue_url:
-        logger.info("Enqueued InvokeAI batch via %s", used_enqueue_url)
+    if used_enqueue:
+        logger.info("Enqueued InvokeAI batch via %s %s", used_enqueue[0], used_enqueue[1])
 
     item_id = _extract_item_id(enqueue_result)
 
