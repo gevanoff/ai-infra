@@ -263,11 +263,17 @@ run_install_remote() {
     remote_ai_infra_root=""
   fi
 
+  local install_cmd="./scripts/install.sh"
+  # InvokeAI installer provisions systemd/nginx and must run as root.
+  if [[ "$role" == "invokeai" ]]; then
+    install_cmd="sudo -n -E ${install_cmd}"
+  fi
+
   if [[ -n "$remote_ai_infra_root" ]]; then
-    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root}/services/${role} && ./scripts/install.sh"
+    ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root}/services/${role} && ${install_cmd}"
   else
     ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_ai_infra_root_snippet)
-cd \"\${AI_INFRA_ROOT}/services/${role}\" && ./scripts/install.sh"
+cd \"\${AI_INFRA_ROOT}/services/${role}\" && ${install_cmd}"
   fi
 }
 
@@ -285,23 +291,50 @@ remote_git_pull() {
     remote_gateway_root=""
   fi
 
+  local safe_pull_snippet
+  safe_pull_snippet='git_safe_pull() {
+  local repo="$1"
+  local label="$2"
+  local mode="${AI_INFRA_GIT_DIRTY_MODE:-stash}"
+  if [ ! -d "$repo/.git" ]; then
+    echo "WARN: $label repo missing at $repo (skipping git pull)" >&2
+    return 0
+  fi
+  cd "$repo" || return 1
+  git checkout main >/dev/null 2>&1 || true
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    if [ "$mode" = "discard" ]; then
+      echo "WARN: $label repo dirty; discarding local changes (AI_INFRA_GIT_DIRTY_MODE=discard)" >&2
+      git reset --hard HEAD >/dev/null 2>&1 || true
+      git clean -fd >/dev/null 2>&1 || true
+    else
+      echo "WARN: $label repo dirty; stashing local changes" >&2
+      git stash push -u -m "ai-infra autostash $(date +%Y%m%d-%H%M%S)" >/dev/null 2>&1 || true
+    fi
+  fi
+  git pull --ff-only
+}
+'
+
   if [[ "$GIT_PULL" == "true" ]]; then
     echo "Updating ai-infra on ${hostname}..." >&2
     if [[ -n "$remote_ai_infra_root" ]]; then
-      ssh_login_exec "$hostname" "$remote_os" "cd ${remote_ai_infra_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+      ssh_login_exec "$hostname" "$remote_os" "${safe_pull_snippet} git_safe_pull ${remote_ai_infra_root} ai-infra"
     else
       ssh_login_exec "$hostname" "$remote_os" "$(remote_resolve_ai_infra_root_snippet)
-cd \"\${AI_INFRA_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+${safe_pull_snippet}
+git_safe_pull \"\${AI_INFRA_ROOT}\" ai-infra"
     fi
   fi
 
   if [[ "$GIT_PULL_GATEWAY" == "true" ]]; then
     echo "Updating gateway on ${hostname}..." >&2
     if [[ -n "$remote_gateway_root" ]]; then
-      ssh_login_exec "$hostname" "$remote_os" "cd ${remote_gateway_root} && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+      ssh_login_exec "$hostname" "$remote_os" "${safe_pull_snippet} git_safe_pull ${remote_gateway_root} gateway"
     else
       ssh_login_exec "$hostname" "$remote_os" "$(remote_try_resolve_gateway_root_snippet)
-cd \"\${GATEWAY_ROOT}\" && git checkout main >/dev/null 2>&1 || true; git pull --ff-only"
+${safe_pull_snippet}
+git_safe_pull \"\${GATEWAY_ROOT}\" gateway"
     fi
   fi
 }
@@ -355,7 +388,6 @@ if [[ -f "$HOSTS_FILE" ]] && command -v yq >/dev/null 2>&1; then
 fi
 
 # Fallback: try known roles.
-run_install "nexa"
 run_install "ollama"
 run_install "mlx"
 run_install "gateway"

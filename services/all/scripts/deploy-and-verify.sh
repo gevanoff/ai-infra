@@ -8,7 +8,7 @@
 #
 # Notes:
 # - Deployment uses deploy-all.sh / deploy-host.sh.
-# - After deployment, this script restarts any roles that do not have a deploy.sh (e.g. ollama/mlx/nexa).
+# - After deployment, this script restarts any roles that do not have a deploy.sh (e.g. ollama/mlx).
 # - Verification uses verify-stack.sh.
 # - Gateway checks require an auth token (env GATEWAY_BEARER_TOKEN or --token), but only when the target hosts include the gateway role.
 

@@ -68,6 +68,63 @@ class ImagesGenerationsRequest(BaseModel):
     scheduler: Optional[str] = None
 
 
+def _parse_model_presets(raw: Optional[str]) -> Dict[str, Dict[str, Any]]:
+    """Parse SHIM_MODEL_PRESETS_JSON.
+
+    Expected shape (single-line JSON):
+      {
+        "gpu_fast": {"model": "Some Model", "steps": 4, "cfg_scale": 0, "scheduler": "..."},
+        "gpu_slow": {"model": "Other Model", "steps": 30, "cfg_scale": 6}
+      }
+
+    Values may also be strings (shorthand for {"model": "..."}).
+    Keys are normalized to lowercase.
+    """
+
+    s = (raw or "").strip()
+    if not s:
+        return {}
+    try:
+        obj = json.loads(s)
+    except Exception:
+        logger.warning("Invalid SHIM_MODEL_PRESETS_JSON (must be valid JSON); ignoring")
+        return {}
+    if not isinstance(obj, dict):
+        logger.warning("Invalid SHIM_MODEL_PRESETS_JSON (must be a JSON object); ignoring")
+        return {}
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for k, v in obj.items():
+        if not isinstance(k, str) or not k.strip():
+            continue
+        kk = k.strip().lower()
+        if isinstance(v, str):
+            out[kk] = {"model": v}
+            continue
+        if isinstance(v, dict):
+            out[kk] = dict(v)
+            continue
+    return out
+
+
+def _as_int(x: Any) -> Optional[int]:
+    if x is None:
+        return None
+    try:
+        return int(x)
+    except Exception:
+        return None
+
+
+def _as_float(x: Any) -> Optional[float]:
+    if x is None:
+        return None
+    try:
+        return float(x)
+    except Exception:
+        return None
+
+
 @dataclass(frozen=True)
 class ShimConfig:
     mode: str
@@ -84,6 +141,7 @@ class ShimConfig:
     model_input_mode: str
     graph_inputs_format: str
     strict_model: bool
+    model_presets_json: Optional[str]
 
 
 def _get_config() -> ShimConfig:
@@ -108,6 +166,7 @@ def _get_config() -> ShimConfig:
         # Values: auto|inputs|flat
         graph_inputs_format=os.getenv("SHIM_GRAPH_INPUTS_FORMAT", "auto").strip().lower(),
         strict_model=os.getenv("SHIM_STRICT_MODEL", "false").strip().lower() in {"1", "true", "yes"},
+        model_presets_json=os.getenv("SHIM_MODEL_PRESETS_JSON"),
     )
 
 
@@ -1003,7 +1062,28 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
 
     width, height = _parse_size(req.size)
 
-    model_name = (req.model or "").strip() or (cfg.default_model or "").strip()
+    presets = _parse_model_presets(cfg.model_presets_json)
+
+    requested_model = (req.model or "").strip()
+    fallback_model = (cfg.default_model or "").strip()
+    requested_or_default = requested_model or fallback_model
+
+    preset = presets.get(requested_or_default.lower()) if requested_or_default else None
+    if preset is not None:
+        preset_model = (preset.get("model") or preset.get("upstream_model") or "").strip()
+        if preset_model:
+            model_name = preset_model
+        else:
+            model_name = requested_or_default
+    else:
+        model_name = requested_or_default
+
+    # Apply preset defaults only when request omits them.
+    steps = req.steps if req.steps is not None else _as_int(preset.get("steps") if preset else None)
+    cfg_scale = req.cfg_scale if req.cfg_scale is not None else _as_float(preset.get("cfg_scale") if preset else None)
+    scheduler = (req.scheduler or "").strip() or ((preset.get("scheduler") or "").strip() if preset else "")
+    scheduler = scheduler or None
+
     model_info = _resolve_model_info(model_name, cfg=cfg) if model_name else None
 
     graph = _load_graph_from_template(
@@ -1022,9 +1102,9 @@ def _invokeai_generate_b64(req: ImagesGenerationsRequest, *, cfg: ShimConfig) ->
         width=width,
         height=height,
         seed=req.seed,
-        steps=req.steps,
-        cfg_scale=req.cfg_scale,
-        scheduler=(req.scheduler or "").strip() or None,
+        steps=steps,
+        cfg_scale=cfg_scale,
+        scheduler=scheduler,
         model_info=model_info,
         model_input_mode=cfg.model_input_mode,
     )

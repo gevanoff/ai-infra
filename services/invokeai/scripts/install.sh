@@ -11,8 +11,18 @@ echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-  echo "Error: This script must be run as root"
-  exit 1
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "Error: This script must be run as root (sudo not found)" >&2
+    exit 1
+  fi
+  # In remote automation we typically don't have a TTY; fail fast if sudo would prompt.
+  if ! sudo -n true >/dev/null 2>&1; then
+    echo "Error: InvokeAI install requires root, but sudo needs a password." >&2
+    echo "Run interactively with: sudo ./install.sh" >&2
+    echo "Or configure passwordless sudo for this user on the host." >&2
+    exit 1
+  fi
+  exec sudo -n -E bash "$0" "$@"
 fi
 
 # Check prerequisites

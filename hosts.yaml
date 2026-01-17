@@ -25,6 +25,7 @@ hosts:
     description: RTX 6000 Ada (46GB) - Image generation
     roles:
       - invokeai
+      - ollama
 
 # Service endpoints (for health checks)
 services:
