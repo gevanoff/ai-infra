@@ -97,7 +97,7 @@ Env vars (in `/var/lib/gateway/app/.env`):
 - `IMAGES_HTTP_TIMEOUT_SEC=120`
 - `IMAGES_A1111_STEPS=20`
 - `IMAGES_MAX_PIXELS=2000000`
-- `IMAGES_OPENAI_MODEL=NexaAI/sdxl-turbo` (required when `IMAGES_BACKEND=http_openai_images` unless clients pass `model`)
+- `IMAGES_OPENAI_MODEL=...` (optional; some OpenAI-ish image servers require it, but the InvokeAI shim can use an upstream default model)
 
 Automatic1111 requirements (when `IMAGES_BACKEND=http_a1111`):
 
