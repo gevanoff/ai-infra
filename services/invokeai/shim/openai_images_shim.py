@@ -837,7 +837,49 @@ def _ensure_invokeai_api_graph(graph: dict) -> dict:
     nodes = graph.get("nodes")
     edges = graph.get("edges")
     if isinstance(nodes, dict) and isinstance(edges, list):
-        return graph
+        cfg = _get_config()
+        mode = (cfg.graph_inputs_format or "auto").strip().lower()
+        if mode == "flat":
+            flatten = True
+        elif mode == "inputs":
+            flatten = False
+        else:
+            detected = _invokeai_queue_prefers_flat_inputs(cfg.invokeai_base_url)
+            flatten = bool(detected) if detected is not None else False
+
+        if not flatten:
+            return graph
+
+        # Normalize: flatten invocation inputs for API graphs that already contain `inputs`.
+        # We only perform the safe direction (inputs -> flat).
+        any_changed = False
+        new_nodes: Dict[str, Any] = {}
+        for node_id, node in nodes.items():
+            if not isinstance(node, dict):
+                new_nodes[node_id] = node
+                continue
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict) or not inputs:
+                new_nodes[node_id] = node
+                continue
+
+            merged = dict(node)
+            merged.pop("inputs", None)
+            for k, v in inputs.items():
+                # Don't let inputs clobber core identity fields.
+                if k in {"id", "type", "version"}:
+                    continue
+                merged.setdefault(k, v)
+
+            new_nodes[node_id] = merged
+            any_changed = True
+
+        if not any_changed:
+            return graph
+
+        new_graph = dict(graph)
+        new_graph["nodes"] = new_nodes
+        return new_graph
     if isinstance(nodes, list) and isinstance(edges, list):
         cfg = _get_config()
         mode = (cfg.graph_inputs_format or "auto").strip().lower()
