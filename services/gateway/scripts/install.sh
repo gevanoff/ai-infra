@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
 require_cmd() {
@@ -9,8 +9,8 @@ require_cmd() {
 }
 
 if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
-  echo "ERROR: This script targets macOS (launchd)." >&2
-  echo "Hint: run it on the Mac host that runs launchd." >&2
+  echo "ERROR: gateway launchd scripts are macOS-only." >&2
+  echo "Hint: run install on the macOS host, or use deploy-host.sh for cross-host operations." >&2
   exit 1
 fi
 

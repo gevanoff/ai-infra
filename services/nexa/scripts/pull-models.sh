@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
 MODEL="${NEXA_PULL_MODEL:-NexaAI/sdxl-turbo}"
