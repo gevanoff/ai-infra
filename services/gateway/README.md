@@ -162,6 +162,12 @@ Per-request overrides:
 
 - Header `X-Backend: ollama|mlx`
 - Model prefixes `ollama:<name>` / `mlx:<name>`
+- Model `auto` (lets the gateway policy pick a backend/model)
+
+Request-type routing (optional):
+
+- Enable with `ROUTER_ENABLE_REQUEST_TYPE=true` (requires `ROUTER_ENABLE_POLICY=true`)
+- Optional header `X-Request-Type: coding|chat` to force the request type
 
 Responses include:
 

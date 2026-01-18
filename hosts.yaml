@@ -11,6 +11,7 @@ hosts:
     roles:
       - gateway
       - mlx
+      - librechat
     
   ai1:
     hostname: ai1
@@ -47,4 +48,9 @@ services:
   invokeai:
     port: 7860
     healthz: /healthz
+    requires_auth: false
+
+  librechat:
+    port: 3080
+    healthz: /health
     requires_auth: false

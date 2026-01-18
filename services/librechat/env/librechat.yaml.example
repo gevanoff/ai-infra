@@ -1,0 +1,21 @@
+# Minimal LibreChat YAML config for using the Local AI Gateway as a custom OpenAI endpoint.
+# Copy to: /var/lib/librechat/app/librechat.yaml (seeded by install.sh)
+
+version: 1.2.1
+
+interface:
+  endpointsMenu: true
+  modelSelect: true
+  parameters: true
+  sidePanel: true
+  presets: true
+
+endpoints:
+  custom:
+    - name: 'gateway'
+      apiKey: '${GATEWAY_BEARER_TOKEN}'
+      baseURL: 'http://ai2:8800/v1'
+      models:
+        default: ['auto']
+        fetch: true
+      modelDisplayLabel: 'gateway'

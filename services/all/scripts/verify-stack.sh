@@ -6,12 +6,19 @@
 # - MLX: /v1/models
 # - Ollama: /api/tags
 # - InvokeAI/nginx: /healthz (+ best-effort /readyz)
+# - LibreChat: /health
 #
 # Usage:
 #   ./verify-stack.sh
 #   ./verify-stack.sh --token <gateway_token>
 #   ./verify-stack.sh --check-images --token <gateway_token>
 #   ./verify-stack.sh --host ai2
+#
+# SSH behavior:
+#   By default, SSH is non-interactive (no password prompts) and will auto-accept
+#   *new* host keys (but still fails if a known host key changes).
+#   To disable host key checking entirely (NOT recommended), set:
+#     VERIFY_STACK_SSH_STRICT=off
 #
 # Environment:
 #   GATEWAY_BEARER_TOKEN can be used instead of --token.
@@ -97,6 +104,21 @@ ssh_login_exec() {
   local remote_os="$2"
   local cmd="$3"
 
+  local ssh_opts=(
+    -o BatchMode=yes
+    -o NumberOfPasswordPrompts=0
+    -o ConnectTimeout="$TIMEOUT_SEC"
+  )
+
+  # Prefer safe automation: accept *new* host keys without prompting.
+  # If your OpenSSH is too old to support accept-new, the SSH call will fail;
+  # in that case, either pre-populate known_hosts or set VERIFY_STACK_SSH_STRICT=off.
+  if [[ "${VERIFY_STACK_SSH_STRICT:-accept-new}" == "off" ]]; then
+    ssh_opts+=( -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null )
+  else
+    ssh_opts+=( -o StrictHostKeyChecking=accept-new )
+  fi
+
   local q
   if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
     cmd="if [ -f ~/.profile ]; then . ~/.profile; fi; ${cmd}"
@@ -104,11 +126,11 @@ ssh_login_exec() {
   q="$(quote_sh "$cmd")"
 
   if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
-    ssh "$hostname" "zsh -lc ${q}"
+    ssh "${ssh_opts[@]}" "$hostname" "zsh -lc ${q}"
     return $?
   fi
 
-  ssh "$hostname" "bash -lc ${q}"
+  ssh "${ssh_opts[@]}" "$hostname" "bash -lc ${q}"
 }
 
 mktemp_file() {
@@ -133,7 +155,11 @@ http_json() {
     shift
   done
 
-  curl -sS -o "$out_body" -w "%{http_code}" --max-time "$TIMEOUT_SEC" -X "$method" "${hdr_args[@]}" "$url"
+  if [[ ${#hdr_args[@]} -gt 0 ]]; then
+    curl -sS -o "$out_body" -w "%{http_code}" --max-time "$TIMEOUT_SEC" -X "$method" "${hdr_args[@]}" "$url"
+  else
+    curl -sS -o "$out_body" -w "%{http_code}" --max-time "$TIMEOUT_SEC" -X "$method" "$url"
+  fi
 }
 
 pass() {
@@ -402,6 +428,15 @@ check_invokeai() {
   return 1
 }
 
+check_librechat() {
+  local hostname="$1"
+  local port="$2"
+  local healthz="$3"
+
+  echo "  librechat:"
+  check_simple_get_200 "health" "http://${hostname}:${port}${healthz}"
+}
+
 # Determine hosts to verify
 if [[ -n "$FILTER_HOST" ]]; then
   HOSTS="$FILTER_HOST"
@@ -461,6 +496,11 @@ for host in $HOSTS; do
         ;;
       invokeai)
         if ! check_invokeai "$hostname" "$port" "$healthz"; then
+          host_failed=true
+        fi
+        ;;
+      librechat)
+        if ! check_librechat "$hostname" "$port" "$healthz"; then
           host_failed=true
         fi
         ;;
