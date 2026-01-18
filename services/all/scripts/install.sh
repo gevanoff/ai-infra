@@ -56,6 +56,22 @@ ssh_login_exec() {
   local remote_os="$2"
   local cmd="$3"
 
+  # Most service installers on macOS require sudo. When invoked over SSH without a TTY,
+  # sudo cannot prompt for a password and may fail in confusing ways.
+  # Default to allocating a TTY for macOS remote execution; opt out with AI_INFRA_SSH_TTY=0.
+  local want_tty="${AI_INFRA_SSH_TTY:-}"
+  if [[ -z "$want_tty" ]]; then
+    if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
+      want_tty="1"
+    else
+      want_tty="0"
+    fi
+  fi
+  local ssh_opts=()
+  if [[ "$want_tty" == "1" || "$want_tty" == "true" ]]; then
+    ssh_opts+=( -t )
+  fi
+
   local q
   if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
     cmd="if [ -f ~/.profile ]; then . ~/.profile; fi; ${cmd}"
@@ -63,16 +79,16 @@ ssh_login_exec() {
   q="$(quote_sh "$cmd")"
 
   if [[ "$remote_os" == "ubuntu" || "$remote_os" == "linux" ]]; then
-    ssh "$hostname" "bash -lc ${q}"
+    ssh "${ssh_opts[@]}" "$hostname" "bash -lc ${q}"
     return $?
   fi
 
   if [[ "$remote_os" == "macos" || "$remote_os" == "darwin" ]]; then
-    ssh "$hostname" "zsh -lc ${q}"
+    ssh "${ssh_opts[@]}" "$hostname" "zsh -lc ${q}"
     return $?
   fi
 
-  ssh "$hostname" "bash -lc ${q}"
+  ssh "${ssh_opts[@]}" "$hostname" "bash -lc ${q}"
 }
 
 remote_resolve_ai_infra_root_snippet() {
