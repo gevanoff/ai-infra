@@ -66,7 +66,7 @@ write_exec_wrapper() {
 
   sudo tee "$dst" >/dev/null <<EOF
 #!/bin/sh
-exec "${target}" "$@"
+exec "${target}" "\$@"
 EOF
   sudo chown root:wheel "$dst"
   sudo chmod 755 "$dst"
