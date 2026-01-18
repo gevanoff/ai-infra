@@ -213,8 +213,17 @@ install_pf_anchor() {
 # Managed by ai-infra (services/librechat)
 # Allow LAN-only access to LibreChat.
 
-pass in proto tcp from 127.0.0.1 to any port ${LIBRECHAT_PORT}
-pass in proto tcp from ${ALLOW_CIDR} to any port ${LIBRECHAT_PORT}
+# NOTE: pf is last-match-wins unless a rule is marked 'quick'.
+# These rules must be 'quick' or a trailing block rule will override them.
+
+# localhost
+pass in quick on lo0 proto tcp from 127.0.0.1 to 127.0.0.1 port ${LIBRECHAT_PORT}
+pass in quick on lo0 inet6 proto tcp from ::1 to ::1 port ${LIBRECHAT_PORT}
+
+# LAN allowlist
+pass in quick proto tcp from ${ALLOW_CIDR} to any port ${LIBRECHAT_PORT}
+
+# default deny
 block in proto tcp to any port ${LIBRECHAT_PORT}
 EOF
   sudo chmod 644 "$PF_ANCHOR"
