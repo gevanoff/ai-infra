@@ -22,7 +22,7 @@ Plists installed under `/Library/LaunchDaemons/`:
 - `com.ai.librechat.mongodb` (mongod, loopback-only)
 - `com.ai.librechat` (LibreChat backend, default port 3080)
 
-Note: the installer copies `node` and `mongod` into `/var/lib/librechat/bin/` as root-owned binaries. This avoids a common macOS `launchctl bootstrap` failure (`Bootstrap failed: 5: Input/output error`) caused by LaunchDaemons refusing to execute binaries inside user-writable Homebrew trees.
+Note: the installer creates root-owned wrapper scripts in `/var/lib/librechat/bin/` for `node` and `mongod`. This avoids a common macOS `launchctl bootstrap` failure (`Bootstrap failed: 5: Input/output error`) caused by LaunchDaemons refusing to execute binaries inside user-writable Homebrew trees, and also avoids `dyld` crashes that can happen when copying the Homebrew `node` binary without its companion `libnode.*.dylib`.
 
 ## LAN firewall (pf)
 

@@ -60,10 +60,24 @@ find_first_existing() {
   return 1
 }
 
+write_exec_wrapper() {
+  local dst="$1"
+  local target="$2"
+
+  sudo tee "$dst" >/dev/null <<EOF
+#!/bin/sh
+exec "${target}" "$@"
+EOF
+  sudo chown root:wheel "$dst"
+  sudo chmod 755 "$dst"
+}
+
 ensure_secure_binaries() {
   # macOS LaunchDaemons are picky about executing binaries in user-writable trees.
   # Homebrew typically lives under /opt/homebrew which is writable by a user/admin group.
-  # Workaround: copy the binaries to a root-owned, non-writable directory.
+  # Workaround: use root-owned wrapper scripts in a root-owned, non-writable directory.
+  # IMPORTANT: do NOT copy the Homebrew node binary directly, as it depends on adjacent
+  # libnode.*.dylib via @rpath and will crash with OS_REASON_DYLD if moved.
 
   local bin_dir="/var/lib/librechat/bin"
   sudo mkdir -p "$bin_dir"
@@ -94,10 +108,8 @@ ensure_secure_binaries() {
     exit 2
   }
 
-  sudo cp "$node_src" "$bin_dir/node"
-  sudo cp "$mongod_src" "$bin_dir/mongod"
-  sudo chown root:wheel "$bin_dir/node" "$bin_dir/mongod"
-  sudo chmod 755 "$bin_dir/node" "$bin_dir/mongod"
+  write_exec_wrapper "$bin_dir/node" "$node_src"
+  write_exec_wrapper "$bin_dir/mongod" "$mongod_src"
 }
 
 set_env_var_if_missing_or_empty() {
