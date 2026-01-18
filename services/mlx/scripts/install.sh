@@ -34,27 +34,40 @@ if ! id -u "${MLX_USER}" >/dev/null 2>&1; then
   exit 1
 fi
 
-sudo chown -R "${MLX_USER}":staff /var/lib/mlx /var/log/mlx
-sudo chmod 750 /var/lib/mlx /var/log/mlx
+# Keep runtime dirs writable by the service user.
+sudo chown -R "${MLX_USER}":staff /var/lib/mlx/cache /var/lib/mlx/run /var/log/mlx
+sudo chmod 750 /var/lib/mlx/cache /var/lib/mlx/run /var/log/mlx
+
+# Keep the venv root-owned for system launchd jobs.
+# For LaunchDaemons, launchd may refuse to bootstrap jobs whose ProgramArguments
+# executable lives in a user-writable location or isn't owned by root.
+sudo mkdir -p "${MLX_VENV}"
+sudo chown -R root:wheel "${MLX_VENV}"
+sudo chmod -R go-w "${MLX_VENV}"
 
 # Ensure the MLX OpenAI server entrypoint exists.
 # If the executable referenced by the plist is missing, `launchctl bootstrap` fails with:
 #   Bootstrap failed: 5: Input/output error
 if [[ ! -x "${MLX_VENV}/bin/mlx-openai-server" ]]; then
-  echo "MLX: provisioning venv at ${MLX_VENV}..." >&2
-  sudo -u "${MLX_USER}" python3 -m venv "${MLX_VENV}"
-  sudo -u "${MLX_USER}" "${MLX_VENV}/bin/python" -m pip install --upgrade pip setuptools wheel
+  echo "MLX: provisioning venv at ${MLX_VENV} (as root)..." >&2
+  sudo python3 -m venv "${MLX_VENV}"
+  sudo "${MLX_VENV}/bin/python" -m pip install --upgrade pip setuptools wheel
 
   echo "MLX: installing packages: ${MLX_PIP_PACKAGES}" >&2
   # shellcheck disable=SC2086
-  sudo -u "${MLX_USER}" "${MLX_VENV}/bin/python" -m pip install --upgrade ${MLX_PIP_PACKAGES}
+  sudo "${MLX_VENV}/bin/python" -m pip install --upgrade ${MLX_PIP_PACKAGES}
+fi
 
-  if [[ ! -x "${MLX_VENV}/bin/mlx-openai-server" ]]; then
-    echo "ERROR: mlx-openai-server not found after install." >&2
-    echo "Hint: set MLX_PIP_PACKAGES to a valid package list for your setup." >&2
-    echo "  Example: MLX_PIP_PACKAGES='mlx-openai-server mlx-lm'" >&2
-    exit 1
-  fi
+# Ensure the entrypoint isn't group/world writable and is root-owned.
+sudo chown root:wheel "${MLX_VENV}/bin/mlx-openai-server" 2>/dev/null || true
+sudo chmod 755 "${MLX_VENV}/bin/mlx-openai-server" 2>/dev/null || true
+sudo chmod -R go-w "${MLX_VENV}" 2>/dev/null || true
+
+if [[ ! -x "${MLX_VENV}/bin/mlx-openai-server" ]]; then
+  echo "ERROR: mlx-openai-server not found at ${MLX_VENV}/bin/mlx-openai-server" >&2
+  echo "Hint: set MLX_PIP_PACKAGES to a valid package list for your setup." >&2
+  echo "  Example: MLX_PIP_PACKAGES='mlx-openai-server mlx-lm'" >&2
+  exit 1
 fi
 
 # Install plist
