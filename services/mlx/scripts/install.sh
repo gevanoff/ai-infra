@@ -80,13 +80,26 @@ sudo plutil -lint "$DST" >/dev/null
 
 # Reload service
 sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-sudo launchctl bootstrap system "$DST" || {
-  echo "ERROR: launchctl bootstrap failed for ${LABEL}." >&2
-  echo "Diagnostics:" >&2
-  echo "  plist: ${DST}" >&2
-  echo "  entrypoint: ${MLX_VENV}/bin/mlx-openai-server" >&2
-  sudo ls -la "${MLX_VENV}/bin" 2>/dev/null | sed 's/^/  /' >&2 || true
-  echo "  Try: sudo launchctl print system/${LABEL}" >&2
-  exit 1
-}
+sudo launchctl bootout system "$DST" 2>/dev/null || true
+
+if ! sudo launchctl bootstrap system "$DST"; then
+  # On some macOS versions/configurations, bootstrap can return a generic I/O error
+  # even if the job is already loaded. If the job exists, prefer idempotence.
+  if sudo launchctl print system/"$LABEL" >/dev/null 2>&1; then
+    echo "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing." >&2
+  else
+    echo "ERROR: launchctl bootstrap failed for ${LABEL}." >&2
+    echo "Diagnostics:" >&2
+    echo "  plist: ${DST}" >&2
+    echo "  entrypoint: ${MLX_VENV}/bin/mlx-openai-server" >&2
+    sudo ls -la "${MLX_VENV}/bin" 2>/dev/null | sed 's/^/  /' >&2 || true
+    if command -v log >/dev/null 2>&1; then
+      echo "  recent launchd logs:" >&2
+      sudo log show --last 2m --predicate 'process == "launchd"' --style compact 2>/dev/null | tail -n 40 | sed 's/^/  /' >&2 || true
+    fi
+    echo "  Try: sudo launchctl print system/${LABEL}" >&2
+    exit 1
+  fi
+fi
+
 sudo launchctl kickstart -k system/"$LABEL"
