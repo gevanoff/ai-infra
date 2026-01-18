@@ -6,6 +6,8 @@ if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
   exit 1
 fi
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 resolve_src_dir() {
   if [[ -n "${LIBRECHAT_SRC_DIR:-}" ]]; then
     echo "${LIBRECHAT_SRC_DIR}"
@@ -29,19 +31,21 @@ git_safe_pull() {
   local repo="$1"
   local label="$2"
   local mode="${AI_INFRA_GIT_DIRTY_MODE:-stash}"
-  cd "$repo" || return 1
-  git checkout main >/dev/null 2>&1 || true
-  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
-    if [[ "$mode" == "discard" ]]; then
-      echo "WARN: $label repo dirty; discarding local changes" >&2
-      git reset --hard HEAD >/dev/null 2>&1 || true
-      git clean -fd >/dev/null 2>&1 || true
-    else
-      echo "WARN: $label repo dirty; stashing local changes" >&2
-      git stash push -u -m "ai-infra autostash $(date +%Y%m%d-%H%M%S)" >/dev/null 2>&1 || true
+  (
+    cd "$repo" || exit 1
+    git checkout main >/dev/null 2>&1 || true
+    if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+      if [[ "$mode" == "discard" ]]; then
+        echo "WARN: $label repo dirty; discarding local changes" >&2
+        git reset --hard HEAD >/dev/null 2>&1 || true
+        git clean -fd >/dev/null 2>&1 || true
+      else
+        echo "WARN: $label repo dirty; stashing local changes" >&2
+        git stash push -u -m "ai-infra autostash $(date +%Y%m%d-%H%M%S)" >/dev/null 2>&1 || true
+      fi
     fi
-  fi
-  git pull --ff-only
+    git pull --ff-only
+  )
 }
 
 require_cmd() {
@@ -104,7 +108,7 @@ echo "Building frontend (npm run frontend)..." >&2
 sudo -u librechat env HOME=/var/lib/librechat NPM_CONFIG_CACHE=/var/lib/librechat/npm-cache bash -lc 'cd /var/lib/librechat/app && npm run frontend'
 
 echo "Restarting services..." >&2
-"$(cd "$(dirname "$0")" && pwd)"/restart.sh
+"${HERE}"/restart.sh
 
 echo "Waiting for LibreChat /health..." >&2
 for i in $(seq 1 60); do
