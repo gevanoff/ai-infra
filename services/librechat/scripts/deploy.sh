@@ -6,12 +6,6 @@ if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
   exit 1
 fi
 
-quote_sh() {
-  local s="$1"
-  s=${s//\'/\'"\'"\'}
-  printf "'%s'" "$s"
-}
-
 resolve_src_dir() {
   if [[ -n "${LIBRECHAT_SRC_DIR:-}" ]]; then
     echo "${LIBRECHAT_SRC_DIR}"
@@ -99,10 +93,10 @@ sudo rsync -a --delete \
 sudo chown -R librechat:staff /var/lib/librechat/app
 
 echo "Installing Node dependencies (npm ci)..." >&2
-sudo -u librechat bash -lc $(quote_sh 'cd /var/lib/librechat/app && npm ci')
+sudo -u librechat bash -lc 'cd /var/lib/librechat/app && npm ci'
 
 echo "Building frontend (npm run frontend)..." >&2
-sudo -u librechat bash -lc $(quote_sh 'cd /var/lib/librechat/app && npm run frontend')
+sudo -u librechat bash -lc 'cd /var/lib/librechat/app && npm run frontend'
 
 echo "Restarting services..." >&2
 "$(cd "$(dirname "$0")" && pwd)"/restart.sh
