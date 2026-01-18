@@ -13,7 +13,7 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/opt/homebrew/bin/node</string>
+      <string>/var/lib/librechat/bin/node</string>
       <string>api/server/index.js</string>
     </array>
 

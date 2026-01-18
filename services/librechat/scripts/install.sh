@@ -48,6 +48,91 @@ done
 
 require_cmd launchctl
 require_cmd plutil
+require_cmd openssl
+
+find_first_existing() {
+  for p in "$@"; do
+    if [[ -n "$p" && -x "$p" ]]; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_secure_binaries() {
+  # macOS LaunchDaemons are picky about executing binaries in user-writable trees.
+  # Homebrew typically lives under /opt/homebrew which is writable by a user/admin group.
+  # Workaround: copy the binaries to a root-owned, non-writable directory.
+
+  local bin_dir="/var/lib/librechat/bin"
+  sudo mkdir -p "$bin_dir"
+  sudo chown root:wheel "$bin_dir"
+  sudo chmod 755 "$bin_dir"
+
+  local node_src
+  node_src="$(command -v node 2>/dev/null || true)"
+  node_src="$(find_first_existing \
+    "$node_src" \
+    /opt/homebrew/bin/node \
+    /usr/local/bin/node \
+  )" || {
+    echo "ERROR: node not found; install Node (brew install node)" >&2
+    exit 2
+  }
+
+  local mongod_src
+  mongod_src="$(command -v mongod 2>/dev/null || true)"
+  mongod_src="$(find_first_existing \
+    "$mongod_src" \
+    /opt/homebrew/bin/mongod \
+    /opt/homebrew/opt/mongodb-community@8.0/bin/mongod \
+    /opt/homebrew/opt/mongodb-community/bin/mongod \
+    /usr/local/bin/mongod \
+  )" || {
+    echo "ERROR: mongod not found; install MongoDB (brew install mongodb-community@8.0)" >&2
+    exit 2
+  }
+
+  sudo cp "$node_src" "$bin_dir/node"
+  sudo cp "$mongod_src" "$bin_dir/mongod"
+  sudo chown root:wheel "$bin_dir/node" "$bin_dir/mongod"
+  sudo chmod 755 "$bin_dir/node" "$bin_dir/mongod"
+}
+
+set_env_var_if_missing_or_empty() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+
+  if [[ ! -f "$env_file" ]]; then
+    return 0
+  fi
+
+  if ! sudo grep -q "^${key}=" "$env_file"; then
+    echo "${key}=${value}" | sudo tee -a "$env_file" >/dev/null
+    return 0
+  fi
+
+  local current
+  current=$(sudo awk -F= -v k="$key" '$1==k {print substr($0, index($0,$2)); exit}' "$env_file" 2>/dev/null || true)
+  if [[ -z "${current}" ]]; then
+    sudo sed -i '' "s|^${key}=.*$|${key}=${value}|" "$env_file"
+  fi
+}
+
+ensure_env_secrets() {
+  local env_file="$1"
+
+  # Force gateway-only by default unless explicitly overridden.
+  set_env_var_if_missing_or_empty "$env_file" "ENDPOINTS" "custom"
+
+  # Secrets used for auth/session/encryption.
+  set_env_var_if_missing_or_empty "$env_file" "JWT_SECRET" "$(openssl rand -hex 32)"
+  set_env_var_if_missing_or_empty "$env_file" "JWT_REFRESH_SECRET" "$(openssl rand -hex 32)"
+  set_env_var_if_missing_or_empty "$env_file" "CREDS_KEY" "$(openssl rand -hex 32)"
+  set_env_var_if_missing_or_empty "$env_file" "CREDS_IV" "$(openssl rand -hex 16)"
+}
 
 ensure_service_user() {
   if id -u librechat >/dev/null 2>&1; then
@@ -150,6 +235,9 @@ seed_configs() {
     echo "NOTE: seeded ${env_dst}; set IMAGE_GEN_OAI_API_KEY and any other secrets." >&2
   fi
 
+  # If the env exists (seeded previously or hand-created), ensure required secrets exist.
+  ensure_env_secrets "$env_dst"
+
   if [[ ! -f "$yaml_dst" && -f "$yaml_example" ]]; then
     sudo cp "$yaml_example" "$yaml_dst"
     sudo chown librechat:staff "$yaml_dst"
@@ -178,13 +266,33 @@ install_plists() {
 
   # Start Mongo immediately.
   sudo launchctl bootout system/"$LABEL_MONGO" 2>/dev/null || true
-  sudo launchctl bootstrap system "$DST_MONGO"
+  if ! sudo launchctl bootstrap system "$DST_MONGO"; then
+    # Idempotence: if it is already loaded, continue.
+    if sudo launchctl print system/"$LABEL_MONGO" >/dev/null 2>&1; then
+      echo "NOTE: MongoDB job already loaded; continuing." >&2
+    else
+      echo "ERROR: launchctl bootstrap failed for MongoDB." >&2
+      echo "Hint: this is often caused by launchd rejecting user-writable executables." >&2
+      echo "Diag: ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/mongod" >&2
+      ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/mongod 2>/dev/null || true
+      exit 1
+    fi
+  fi
   sudo launchctl kickstart -k system/"$LABEL_MONGO"
 
   # Start LibreChat only if a deploy has populated the app entrypoint.
   if [[ -f "/var/lib/librechat/app/api/server/index.js" ]]; then
     sudo launchctl bootout system/"$LABEL_APP" 2>/dev/null || true
-    sudo launchctl bootstrap system "$DST_APP"
+    if ! sudo launchctl bootstrap system "$DST_APP"; then
+      if sudo launchctl print system/"$LABEL_APP" >/dev/null 2>&1; then
+        echo "NOTE: LibreChat job already loaded; continuing." >&2
+      else
+        echo "ERROR: launchctl bootstrap failed for LibreChat." >&2
+        echo "Diag: ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/node" >&2
+        ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/node 2>/dev/null || true
+        exit 1
+      fi
+    fi
     sudo launchctl kickstart -k system/"$LABEL_APP"
   else
     echo "NOTE: LibreChat app not deployed yet; plist installed but not started." >&2
@@ -200,6 +308,8 @@ ensure_service_user
 sudo mkdir -p /var/lib/librechat/{app,data,mongo} /var/lib/librechat/mongo/data /var/log/librechat
 sudo chown -R librechat:staff /var/lib/librechat /var/log/librechat
 sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/librechat /var/log/librechat
+
+ensure_secure_binaries
 
 seed_configs
 install_pf_anchor

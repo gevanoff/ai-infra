@@ -13,7 +13,7 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/opt/homebrew/bin/mongod</string>
+      <string>/var/lib/librechat/bin/mongod</string>
       <string>--config</string>
       <string>/var/lib/librechat/mongo/mongod.conf</string>
     </array>
