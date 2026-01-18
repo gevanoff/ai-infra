@@ -92,11 +92,16 @@ sudo rsync -a --delete \
 
 sudo chown -R librechat:staff /var/lib/librechat/app
 
+# Ensure npm cache is service-owned. This prevents EACCES when the invoking user
+# has a root-owned ~/.npm cache from prior npm versions.
+sudo mkdir -p /var/lib/librechat/npm-cache
+sudo chown -R librechat:staff /var/lib/librechat/npm-cache
+
 echo "Installing Node dependencies (npm ci)..." >&2
-sudo -u librechat bash -lc 'cd /var/lib/librechat/app && npm ci'
+sudo -u librechat env HOME=/var/lib/librechat NPM_CONFIG_CACHE=/var/lib/librechat/npm-cache bash -lc 'cd /var/lib/librechat/app && npm ci'
 
 echo "Building frontend (npm run frontend)..." >&2
-sudo -u librechat bash -lc 'cd /var/lib/librechat/app && npm run frontend'
+sudo -u librechat env HOME=/var/lib/librechat NPM_CONFIG_CACHE=/var/lib/librechat/npm-cache bash -lc 'cd /var/lib/librechat/app && npm run frontend'
 
 echo "Restarting services..." >&2
 "$(cd "$(dirname "$0")" && pwd)"/restart.sh
