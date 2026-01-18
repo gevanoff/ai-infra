@@ -62,6 +62,9 @@ require_cmd npm
 require_cmd curl
 
 PORT="${LIBRECHAT_PORT:-3080}"
+HEALTH_WAIT_SECONDS="${LIBRECHAT_HEALTH_WAIT_SECONDS:-90}"
+CURL_CONNECT_TIMEOUT_SECONDS="${LIBRECHAT_CURL_CONNECT_TIMEOUT_SECONDS:-2}"
+CURL_MAX_TIME_SECONDS="${LIBRECHAT_CURL_MAX_TIME_SECONDS:-3}"
 
 SRC_DIR=""
 if SRC_DIR="$(resolve_src_dir)"; then
@@ -111,13 +114,22 @@ echo "Restarting services..." >&2
 "${HERE}"/restart.sh
 
 echo "Waiting for LibreChat /health..." >&2
-for i in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
+for i in $(seq 1 "${HEALTH_WAIT_SECONDS}"); do
+  if curl -fsS \
+    --connect-timeout "${CURL_CONNECT_TIMEOUT_SECONDS}" \
+    --max-time "${CURL_MAX_TIME_SECONDS}" \
+    "http://127.0.0.1:${PORT}/health" \
+    >/dev/null 2>&1; then
     echo "OK" >&2
     exit 0
+  fi
+  if (( i % 10 == 0 )); then
+    echo "...still waiting (${i}/${HEALTH_WAIT_SECONDS})" >&2
   fi
   sleep 1
 done
 
 echo "ERROR: LibreChat did not become healthy on http://127.0.0.1:${PORT}/health" >&2
+echo "Diag: showing status/log tail" >&2
+"${HERE}"/status.sh || true
 exit 1
