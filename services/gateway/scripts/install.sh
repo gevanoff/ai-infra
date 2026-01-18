@@ -22,6 +22,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="${HERE}/../launchd/${LABEL}.plist.example"
 DST="/Library/LaunchDaemons/${LABEL}.plist"
 VENV_PY="/var/lib/gateway/env/bin/python"
+GATEWAY_VENV="${GATEWAY_VENV:-/var/lib/gateway/env}"
 REQ1="/var/lib/gateway/app/app/requirements.txt"
 REQ2="/var/lib/gateway/app/app/requirements.freeze.txt"
 TOOLS_REQ="/var/lib/gateway/app/tools/requirements.txt"
@@ -35,8 +36,16 @@ if ! id -u gateway >/dev/null 2>&1; then
   exit 1
 fi
 
-sudo chown -R gateway:staff /var/lib/gateway /var/log/gateway
-sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/gateway /var/log/gateway
+# Keep runtime dirs writable by the service user.
+sudo chown -R gateway:staff /var/lib/gateway/app /var/lib/gateway/data /var/lib/gateway/tools /var/log/gateway
+sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/gateway/app /var/lib/gateway/data /var/lib/gateway/tools /var/log/gateway
+
+# Keep the venv root-owned for system launchd jobs.
+# For LaunchDaemons, launchd may refuse to bootstrap jobs whose ProgramArguments
+# executable lives in a user-writable location or isn't owned by root.
+sudo mkdir -p "${GATEWAY_VENV}"
+sudo chown -R root:wheel "${GATEWAY_VENV}"
+sudo chmod -R go-w "${GATEWAY_VENV}"
 
 # Ensure a venv exists (used by the plist)
 if [[ ! -x "${VENV_PY}" ]]; then
@@ -44,10 +53,10 @@ if [[ ! -x "${VENV_PY}" ]]; then
     echo "ERROR: python3 not found (needed to create /var/lib/gateway/env venv)" >&2
     exit 1
   fi
-  sudo python3 -m venv /var/lib/gateway/env
+  sudo python3 -m venv "${GATEWAY_VENV}"
   sudo "${VENV_PY}" -m pip install -U pip >/dev/null
-  sudo chown -R gateway:staff /var/lib/gateway/env
-  sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/gateway/env
+  sudo chown -R root:wheel "${GATEWAY_VENV}"
+  sudo chmod -R go-w "${GATEWAY_VENV}"
 fi
 
 # Install Python deps if the gateway code has already been deployed.
@@ -61,7 +70,7 @@ fi
 
 if [[ -n "${REQ_FILE}" ]]; then
   echo "Installing gateway Python dependencies from ${REQ_FILE}..." >&2
-  sudo -u gateway "${VENV_PY}" -m pip install -r "${REQ_FILE}"
+  sudo "${VENV_PY}" -m pip install -r "${REQ_FILE}"
 else
   echo "NOTE: requirements not found at ${REQ1} or ${REQ2}; skipping pip install." >&2
   echo "Hint: run the gateway deploy script to populate /var/lib/gateway/app, then rerun install.sh." >&2
@@ -70,7 +79,7 @@ fi
 # Install optional tool-script deps (e.g. OpenAI SDK streaming sanity check)
 if [[ -f "${TOOLS_REQ}" ]]; then
   echo "Installing gateway tool-script dependencies from ${TOOLS_REQ}..." >&2
-  sudo -u gateway "${VENV_PY}" -m pip install -r "${TOOLS_REQ}"
+  sudo "${VENV_PY}" -m pip install -r "${TOOLS_REQ}"
 fi
 
 # Seed .env if missing (do NOT overwrite if it exists)
@@ -95,7 +104,28 @@ sudo plutil -lint "$DST" >/dev/null
 LOGCFG="/var/lib/gateway/app/tools/uvicorn_log_config.json"
 if [[ -f "${LOGCFG}" ]]; then
   sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-  sudo launchctl bootstrap system "$DST"
+  sudo launchctl bootout system "$DST" 2>/dev/null || true
+
+  if ! sudo launchctl bootstrap system "$DST"; then
+    # On some macOS versions/configurations, bootstrap can return a generic I/O error
+    # even if the job is already loaded. If the job exists, prefer idempotence.
+    if sudo launchctl print system/"$LABEL" >/dev/null 2>&1; then
+      echo "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing." >&2
+    else
+      echo "ERROR: launchctl bootstrap failed for ${LABEL}." >&2
+      echo "Diagnostics:" >&2
+      echo "  plist: ${DST}" >&2
+      echo "  venv python: ${VENV_PY}" >&2
+      sudo ls -la "${GATEWAY_VENV}/bin" 2>/dev/null | sed 's/^/  /' >&2 || true
+      if command -v log >/dev/null 2>&1; then
+        echo "  recent launchd logs:" >&2
+        sudo log show --last 2m --predicate 'process == "launchd"' --style compact 2>/dev/null | tail -n 40 | sed 's/^/  /' >&2 || true
+      fi
+      echo "  Try: sudo launchctl print system/${LABEL}" >&2
+      exit 1
+    fi
+  fi
+
   sudo launchctl kickstart -k system/"$LABEL"
 else
   echo "NOTE: ${LOGCFG} not found yet; plist installed but not started." >&2
