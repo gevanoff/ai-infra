@@ -45,12 +45,12 @@ curl -fsS --connect-timeout 2 --max-time 5 "http://127.0.0.1:${PORT}/health" | g
 pass "LibreChat /health is OK"
 
 echo "Checking LibreChat env (gateway-only)..."
-${SUDO} /usr/bin/test -f "$ENV_FILE" || fail "Missing env file: $ENV_FILE"
+${SUDO} /bin/test -f "$ENV_FILE" || fail "Missing env file: $ENV_FILE"
 ${SUDO} grep -q '^ENDPOINTS=custom$' "$ENV_FILE" || fail "Expected ENDPOINTS=custom in $ENV_FILE"
 pass "ENDPOINTS=custom"
 
 echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..."
-${SUDO} /usr/bin/test -f "$YAML_FILE" || fail "Missing YAML config: $YAML_FILE"
+${SUDO} /bin/test -f "$YAML_FILE" || fail "Missing YAML config: $YAML_FILE"
 
 # These checks are intentionally simple string matches.
 # The provided ai-infra harden/template scripts write these blocks deterministically.
