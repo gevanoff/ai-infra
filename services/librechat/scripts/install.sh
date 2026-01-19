@@ -52,7 +52,17 @@ require_cmd openssl
 
 find_first_existing() {
   for p in "$@"; do
-    if [[ -n "$p" && -x "$p" ]]; then
+    if [[ -z "$p" ]]; then
+      continue
+    fi
+
+    # Never select our own wrapper scripts as the source binary.
+    # If we do, we can end up with self-referential wrappers or malformed exec lines.
+    if [[ "$p" == "/var/lib/librechat/bin/node" || "$p" == "/var/lib/librechat/bin/mongod" ]]; then
+      continue
+    fi
+
+    if [[ -x "$p" ]]; then
       echo "$p"
       return 0
     fi
@@ -85,24 +95,22 @@ ensure_secure_binaries() {
   sudo chmod 755 "$bin_dir"
 
   local node_src
-  node_src="$(command -v node 2>/dev/null || true)"
   node_src="$(find_first_existing \
-    "$node_src" \
     /opt/homebrew/bin/node \
     /usr/local/bin/node \
+    "$(command -v node 2>/dev/null || true)" \
   )" || {
     echo "ERROR: node not found; install Node (brew install node)" >&2
     exit 2
   }
 
   local mongod_src
-  mongod_src="$(command -v mongod 2>/dev/null || true)"
   mongod_src="$(find_first_existing \
-    "$mongod_src" \
     /opt/homebrew/bin/mongod \
     /opt/homebrew/opt/mongodb-community@8.0/bin/mongod \
     /opt/homebrew/opt/mongodb-community/bin/mongod \
     /usr/local/bin/mongod \
+    "$(command -v mongod 2>/dev/null || true)" \
   )" || {
     echo "ERROR: mongod not found; install MongoDB (brew install mongodb-community@8.0)" >&2
     exit 2

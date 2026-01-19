@@ -43,6 +43,7 @@ From `services/librechat/scripts/`:
 - `deploy.sh`: Pulls/clones LibreChat source (git) to a host-local checkout, rsyncs into `/var/lib/librechat/app`, runs `npm ci` + `npm run frontend`, restarts launchd, waits for `/health`.
 - `restart.sh`: Restarts both MongoDB and LibreChat launchd jobs.
 - `harden.sh`: Applies “disable Actions + MCP” hardening to `/var/lib/librechat/app/librechat.yaml` (with a timestamped backup) and restarts services.
+- `refresh_wrappers.sh`: Regenerates `/var/lib/librechat/bin/{node,mongod}` wrappers (use if launchd logs show Node trying to load a bogus module path).
 - `status.sh`: Shows launchd state + listeners + recent logs.
 - `verify.sh`: Hits `http://127.0.0.1:3080/health` and checks MongoDB is listening.
 - `uninstall.sh`: Stops/unloads plists, removes pf anchor lines, optionally purges data.
