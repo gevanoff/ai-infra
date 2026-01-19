@@ -21,17 +21,17 @@ YAML_FILE="/var/lib/librechat/app/librechat.yaml"
 
 PORT="${LIBRECHAT_PORT:-3080}"
 
-echo "Checking MongoDB listener..." >&2
+echo "Checking MongoDB listener..."
 lsof -nP -iTCP:27017 -sTCP:LISTEN >/dev/null
 
-echo "Checking LibreChat /health..." >&2
+echo "Checking LibreChat /health..."
 curl -fsS --connect-timeout 2 --max-time 5 "http://127.0.0.1:${PORT}/health" | grep -q "OK"
 
-echo "Checking LibreChat env (gateway-only)..." >&2
+echo "Checking LibreChat env (gateway-only)..."
 test -f "$ENV_FILE"
 grep -q '^ENDPOINTS=custom$' "$ENV_FILE"
 
-echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..." >&2
+echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..."
 test -f "$YAML_FILE"
 
 # These checks are intentionally simple string matches.
@@ -47,4 +47,4 @@ grep -q '^  mcpServers:$' "$YAML_FILE"
 grep -q '^    use: false$' "$YAML_FILE"
 grep -q '^    create: false$' "$YAML_FILE"
 
-echo "OK" >&2
+echo "OK"
