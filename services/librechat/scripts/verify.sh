@@ -16,12 +16,35 @@ require_cmd() {
 require_cmd curl
 require_cmd lsof
 
+ENV_FILE="/var/lib/librechat/app/.env"
+YAML_FILE="/var/lib/librechat/app/librechat.yaml"
+
 PORT="${LIBRECHAT_PORT:-3080}"
 
 echo "Checking MongoDB listener..." >&2
 lsof -nP -iTCP:27017 -sTCP:LISTEN >/dev/null
 
 echo "Checking LibreChat /health..." >&2
-curl -fsS "http://127.0.0.1:${PORT}/health" | grep -q "OK"
+curl -fsS --connect-timeout 2 --max-time 5 "http://127.0.0.1:${PORT}/health" | grep -q "OK"
+
+echo "Checking LibreChat env (gateway-only)..." >&2
+test -f "$ENV_FILE"
+grep -q '^ENDPOINTS=custom$' "$ENV_FILE"
+
+echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..." >&2
+test -f "$YAML_FILE"
+
+# These checks are intentionally simple string matches.
+# The provided ai-infra harden/template scripts write these blocks deterministically.
+grep -q '^actions:$' "$YAML_FILE"
+grep -q '^  allowedDomains: \[\]$' "$YAML_FILE"
+
+grep -q '^mcpSettings:$' "$YAML_FILE"
+grep -q '^  allowedDomains: \[\]$' "$YAML_FILE"
+
+grep -q '^interface:$' "$YAML_FILE"
+grep -q '^  mcpServers:$' "$YAML_FILE"
+grep -q '^    use: false$' "$YAML_FILE"
+grep -q '^    create: false$' "$YAML_FILE"
 
 echo "OK" >&2
