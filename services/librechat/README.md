@@ -42,6 +42,7 @@ From `services/librechat/scripts/`:
 - `install.sh`: Creates runtime dirs under `/var/lib/librechat`, creates a `librechat` service user if missing, installs MongoDB + Node via Homebrew (optional), installs pf rule, installs launchd plists.
 - `deploy.sh`: Pulls/clones LibreChat source (git) to a host-local checkout, rsyncs into `/var/lib/librechat/app`, runs `npm ci` + `npm run frontend`, restarts launchd, waits for `/health`.
 - `restart.sh`: Restarts both MongoDB and LibreChat launchd jobs.
+- `harden.sh`: Applies “disable Actions + MCP” hardening to `/var/lib/librechat/app/librechat.yaml` (with a timestamped backup) and restarts services.
 - `status.sh`: Shows launchd state + listeners + recent logs.
 - `verify.sh`: Hits `http://127.0.0.1:3080/health` and checks MongoDB is listening.
 - `uninstall.sh`: Stops/unloads plists, removes pf anchor lines, optionally purges data.
@@ -60,3 +61,30 @@ If not found, it will clone from `LIBRECHAT_GIT_URL` (defaults to `https://githu
 
 - This setup is HTTP-only. Keep it LAN-only (pf rule enforces this for port 3080).
 - MongoDB is bound to `127.0.0.1` only.
+
+## Actions + MCP (disabled by default)
+
+The provided template config in ai-infra/services/librechat/env/librechat.yaml.example disables the two highest-risk “tool surfaces” by default:
+
+- **Actions**: disabled by setting `actions.allowedDomains: []`
+- **MCP**: remote transports blocked by `mcpSettings.allowedDomains: []`, and the MCP servers UI is hidden/disabled via `interface.mcpServers.*: false`
+
+### Re-enable Actions later
+
+Edit `/var/lib/librechat/app/librechat.yaml`:
+
+- Set `actions.allowedDomains` to an explicit allowlist (recommended: your LAN-only hosts/domains).
+
+### Re-enable MCP later
+
+Edit `/var/lib/librechat/app/librechat.yaml`:
+
+- Set `interface.mcpServers.use/create` back to `true` (and `share/public` if desired).
+- Set `mcpSettings.allowedDomains` to an explicit allowlist for any MCP servers that use HTTP/SSE/Streamable HTTP.
+- Optionally add static MCP servers under `mcpServers:` (admin-defined) if you prefer configuration-as-code.
+
+### Apply hardening on an existing install
+
+On `ai2`, run:
+
+- `sudo /path/to/ai-infra/services/librechat/scripts/harden.sh`

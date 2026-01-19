@@ -9,6 +9,21 @@ interface:
   parameters: true
   sidePanel: true
   presets: true
+  # Security hardening: hide/disable MCP server UI by default.
+  # Re-enable intentionally when you want MCP-based tools.
+  mcpServers:
+    use: false
+    create: false
+    share: false
+    public: false
+
+# Security hardening: disable Actions and block MCP remote transports by default.
+# To enable later, set explicit allowlists (see ai-infra/services/librechat/README.md).
+actions:
+  allowedDomains: []
+
+mcpSettings:
+  allowedDomains: []
 
 endpoints:
   custom:
