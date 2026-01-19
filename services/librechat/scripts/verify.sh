@@ -13,6 +13,7 @@ require_cmd() {
   }
 }
 
+require_cmd sudo
 require_cmd curl
 require_cmd lsof
 
@@ -31,7 +32,7 @@ pass() {
 }
 
 echo "Checking MongoDB listener..."
-lsof -nP -iTCP:27017 -sTCP:LISTEN >/dev/null || fail "MongoDB is not listening on TCP/27017. Try: sudo services/librechat/scripts/restart.sh ; then services/librechat/scripts/status.sh"
+sudo lsof -nP -iTCP:27017 -sTCP:LISTEN >/dev/null || fail "MongoDB is not listening on TCP/27017. Try: sudo services/librechat/scripts/restart.sh ; then services/librechat/scripts/status.sh"
 pass "MongoDB is listening on TCP/27017"
 
 echo "Checking LibreChat /health..."
