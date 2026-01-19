@@ -28,6 +28,17 @@ CONFIG_PATH="/var/lib/librechat/app/librechat.yaml"
 DO_RESTART=true
 DRY_RUN=false
 
+if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
+  echo "ERROR: this hardening script is intended for macOS (Darwin)." >&2
+  exit 2
+fi
+
+# Re-exec early via sudo before we parse/shift args.
+# If we wait until after parsing, we will have shifted $@ to empty and lose flags like --dry-run.
+if [[ "$(id -u)" -ne 0 ]]; then
+  exec sudo "$0" "$@"
+fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
@@ -54,18 +65,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
-  echo "ERROR: this hardening script is intended for macOS (Darwin)." >&2
-  exit 2
+if [[ "$DRY_RUN" == "true" ]]; then
+  # Dry run must be non-invasive.
+  DO_RESTART=false
 fi
 
 if [[ ! -f "$CONFIG_PATH" ]]; then
   echo "ERROR: config not found: $CONFIG_PATH" >&2
   exit 2
-fi
-
-if [[ "$(id -u)" -ne 0 ]]; then
-  exec sudo --preserve-env=CONFIG_PATH,DO_RESTART,DRY_RUN "$0" "$@"
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
