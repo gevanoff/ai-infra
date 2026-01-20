@@ -30,7 +30,11 @@ validate_wrapper() {
   #   exec "/abs/path" "$@"
   local line
   line="$(sudo sed -n '2p' "$path" 2>/dev/null | tr -d '\r' || true)"
-  if [[ "$line" =~ ^exec\ "\/[^\"\ ]+"\ "\$@"$ ]]; then
+  # NOTE: keep the regex in a single-quoted variable so "$@" is treated literally
+  # (and doesn't expand to this script's arguments).
+  local re
+  re='^exec "\/[^"[:space:]]+" "\$@"$'
+  if [[ "$line" =~ $re ]]; then
     return 0
   fi
   return 1
