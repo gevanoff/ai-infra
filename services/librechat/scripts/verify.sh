@@ -57,6 +57,43 @@ echo "Checking gateway listener (TCP/8800)..."
 ${SUDO} lsof -nP -iTCP:8800 -sTCP:LISTEN >/dev/null || fail "Gateway is not listening on TCP/8800. LibreChat will time out calling the custom endpoint."
 pass "Gateway is listening on TCP/8800"
 
+echo "Checking gateway chat smoke test (/v1/chat/completions)..."
+GATEWAY_TOKEN_RAW="$(${SUDO} awk -F= '/^GATEWAY_BEARER_TOKEN=/{sub(/^GATEWAY_BEARER_TOKEN=/, ""); print; exit}' "$ENV_FILE" 2>/dev/null || true)"
+GATEWAY_TOKEN="${GATEWAY_TOKEN_RAW%$'\r'}"
+GATEWAY_TOKEN="${GATEWAY_TOKEN%"}"; GATEWAY_TOKEN="${GATEWAY_TOKEN#"}"
+
+[[ -n "${GATEWAY_TOKEN}" ]] || fail "Could not read GATEWAY_BEARER_TOKEN from $ENV_FILE"
+
+tmp_hdr="$(mktemp)"
+tmp_body="$(mktemp)"
+http_code="$(
+  curl -sS -D "$tmp_hdr" -o "$tmp_body" -w '%{http_code}' \
+    -H "Authorization: Bearer ${GATEWAY_TOKEN}" \
+    -H 'Content-Type: application/json' \
+    'http://127.0.0.1:8800/v1/chat/completions' \
+    -d '{"model":"auto","messages":[{"role":"user","content":"hello"}],"stream":false}' \
+    || echo "000"
+)"
+
+if [[ ! "$http_code" =~ ^2 ]]; then
+  echo "--- gateway response headers ---" >&2
+  tail -n 50 "$tmp_hdr" >&2 || true
+  echo "--- gateway response body ---" >&2
+  tail -n 200 "$tmp_body" >&2 || true
+  rm -f "$tmp_hdr" "$tmp_body" || true
+  fail "Gateway chat smoke test failed (HTTP $http_code). Check: sudo services/gateway/scripts/status.sh ; and /var/log/gateway/gateway.err.log"
+fi
+
+grep -q '"choices"' "$tmp_body" || {
+  echo "--- gateway response body ---" >&2
+  tail -n 200 "$tmp_body" >&2 || true
+  rm -f "$tmp_hdr" "$tmp_body" || true
+  fail "Gateway chat smoke test returned HTTP $http_code but response did not look like an OpenAI chat completion (missing choices)"
+}
+
+rm -f "$tmp_hdr" "$tmp_body" || true
+pass "Gateway chat completion returns 2xx"
+
 echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..."
 ${SUDO} /bin/test -f "$YAML_FILE" || fail "Missing YAML config: $YAML_FILE"
 
