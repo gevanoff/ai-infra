@@ -62,7 +62,9 @@ require_cmd npm
 require_cmd curl
 
 PATCHES_DIR="${HERE}/../patches"
-LIBRECHAT_APPLY_PATCHES="${LIBRECHAT_APPLY_PATCHES:-1}"
+# Patches are optional and can break when upstream LibreChat changes.
+# Keep them opt-in so deploys remain reliable.
+LIBRECHAT_APPLY_PATCHES="${LIBRECHAT_APPLY_PATCHES:-0}"
 
 PORT="${LIBRECHAT_PORT:-3080}"
 HEALTH_WAIT_SECONDS="${LIBRECHAT_HEALTH_WAIT_SECONDS:-90}"
