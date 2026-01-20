@@ -22,8 +22,28 @@ echo "== gateway status $(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 
 sudo launchctl print system/"$LABEL" | sed -n '1,220p'
 
+echo "---- deployed commits ----"
+if [[ -f /var/lib/gateway/app/DEPLOYED_GATEWAY_COMMIT ]]; then
+  echo -n "gateway="
+  cat /var/lib/gateway/app/DEPLOYED_GATEWAY_COMMIT
+else
+  echo "gateway=(missing /var/lib/gateway/app/DEPLOYED_GATEWAY_COMMIT)"
+fi
+
+if [[ -f /var/lib/gateway/app/DEPLOYED_AI_INFRA_COMMIT ]]; then
+  echo -n "ai-infra="
+  cat /var/lib/gateway/app/DEPLOYED_AI_INFRA_COMMIT
+else
+  echo "ai-infra=(missing /var/lib/gateway/app/DEPLOYED_AI_INFRA_COMMIT)"
+fi
+
 echo "---- listener ----"
 if sudo lsof -nP -iTCP:8800 -sTCP:LISTEN; then
+  PID="$(sudo lsof -t -iTCP:8800 -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
+  if [[ -n "${PID}" ]]; then
+    echo "---- listener command ----"
+    sudo ps -p "${PID}" -o pid,user,command -ww || true
+  fi
   :
 else
   echo "NO LISTENER: nothing bound to TCP/8800" >&2
