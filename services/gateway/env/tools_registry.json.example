@@ -18,6 +18,29 @@
         "timeout_sec": 5,
         "cwd": "/var/lib/gateway/tools"
       }
+    },
+    {
+      "name": "followyourcanvas_generate",
+      "version": "1",
+      "description": "Generate a video via the FollowYourCanvas backend (POST /v1/videos/generations).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": { "type": "string" },
+          "duration_seconds": { "type": "integer", "minimum": 1 },
+          "width": { "type": "integer", "minimum": 64 },
+          "height": { "type": "integer", "minimum": 64 },
+          "seed": { "type": "integer" }
+        },
+        "required": ["prompt"],
+        "additionalProperties": true
+      },
+      "exec": {
+        "type": "subprocess",
+        "argv": ["/usr/bin/python3", "/var/lib/gateway/tools/followyourcanvas_generate.py"],
+        "timeout_sec": 900,
+        "cwd": "/var/lib/gateway/tools"
+      }
     }
   ]
 }
