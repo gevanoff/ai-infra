@@ -51,16 +51,52 @@ ensure_service_user() {
     exit 1
   fi
 
-  # Pick an unused UID in the 401..499 range (service users)
-  local uid=""
-  for cand in $(seq 401 499); do
-    if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-      uid="${cand}"
-      break
+  pick_free_uid() {
+    local cand
+
+    # Prefer system/service UID ranges first.
+    for cand in $(seq 401 499); do
+      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+        echo "${cand}"
+        return 0
+      fi
+    done
+
+    for cand in $(seq 200 399); do
+      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+        echo "${cand}"
+        return 0
+      fi
+    done
+
+    # Some managed Macs have many system accounts; fall back to a higher range.
+    for cand in $(seq 600 799); do
+      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+        echo "${cand}"
+        return 0
+      fi
+    done
+
+    # Last resort: choose max(existing_uid)+1.
+    local max_uid
+    max_uid="$(dscl . -list /Users UniqueID 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
+    if [[ -z "${max_uid:-}" ]]; then
+      return 1
     fi
-  done
+
+    cand="$((max_uid + 1))"
+    if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+      echo "${cand}"
+      return 0
+    fi
+
+    return 1
+  }
+
+  local uid
+  uid="$(pick_free_uid)"
   if [[ -z "${uid:-}" ]]; then
-    echo "ERROR: no free UID found in 401..499 for user '${user}'" >&2
+    echo "ERROR: unable to find a free UID for user '${user}'" >&2
     exit 1
   fi
 
