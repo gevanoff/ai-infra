@@ -25,10 +25,37 @@ ensure_loaded() {
   fi
 
   echo "Bootstrapping ${label}..." >&2
-  if ! sudo launchctl bootstrap system "$plist"; then
-    # If it raced and is now loaded, continue.
-    sudo launchctl print system/"$label" >/dev/null 2>&1
+
+  # First attempt.
+  if sudo launchctl bootstrap system "$plist" >/dev/null 2>&1; then
+    return 0
   fi
+
+  # If it raced and is now loaded, continue.
+  if sudo launchctl print system/"$label" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Common failure mode: "Bootstrap failed: 5: Input/output error" when a stale
+  # job instance exists or launchd rejects the prior state. Do a best-effort
+  # bootout and retry once.
+  echo "WARN: bootstrap failed for ${label}; attempting bootout + retry..." >&2
+  sudo launchctl bootout system/"$label" 2>/dev/null || true
+  sudo launchctl bootout system "$plist" 2>/dev/null || true
+
+  if sudo launchctl bootstrap system "$plist" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Final check; if still not loaded, fail with a helpful hint.
+  if sudo launchctl print system/"$label" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "ERROR: unable to bootstrap ${label} from ${plist}" >&2
+  echo "Hint: run services/librechat/scripts/refresh_wrappers.sh (node/mongod wrapper perms)" >&2
+  echo "Hint: see launchd logs: sudo log show --last 2m --predicate 'process == \"launchd\"' --style compact | tail -n 120" >&2
+  return 1
 }
 
 ensure_loaded "$LABEL_MONGO" "$PLIST_MONGO"
