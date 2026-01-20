@@ -22,20 +22,68 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="${HERE}/../launchd/${LABEL}.plist.example"
 DST="/Library/LaunchDaemons/${LABEL}.plist"
 HEARTMULA_USER="${HEARTMULA_USER:-heartmula}"
-HEARTMULA_VENV="${HEARTMULA_VENV:-/var/lib/heartmula/env}"
+HEARTMULA_GROUP="${HEARTMULA_GROUP:-staff}"
+HEARTMULA_HOME="${HEARTMULA_HOME:-/var/lib/heartmula}"
+HEARTMULA_VENV="${HEARTMULA_VENV:-${HEARTMULA_HOME}/env}"
 HEARTMULA_PIP_PACKAGES="${HEARTMULA_PIP_PACKAGES:-heartmula}"
 HEARTMULA_ENTRYPOINT="${HEARTMULA_ENTRYPOINT:-${HEARTMULA_VENV}/bin/heartmula}"
 
-sudo mkdir -p /var/lib/heartmula/{cache,models,run} /var/log/heartmula
+ensure_service_user() {
+  local user="$1"
+  local group="$2"
+  local home="$3"
 
-if ! id -u "${HEARTMULA_USER}" >/dev/null 2>&1; then
-  echo "ERROR: user '${HEARTMULA_USER}' does not exist on this machine" >&2
-  echo "Hint: create it (or set HEARTMULA_USER / update the plist UserName and chown targets)." >&2
-  exit 1
-fi
+  if id -u "${user}" >/dev/null 2>&1; then
+    return 0
+  fi
 
-sudo chown -R "${HEARTMULA_USER}":staff /var/lib/heartmula /var/log/heartmula
-sudo chmod 750 /var/lib/heartmula /var/log/heartmula
+  require_cmd dscl
+
+  if ! dscl . -read "/Groups/${group}" >/dev/null 2>&1; then
+    echo "ERROR: group '${group}' not found on this machine" >&2
+    exit 1
+  fi
+
+  local gid
+  gid="$(dscl . -read "/Groups/${group}" PrimaryGroupID 2>/dev/null | awk '{print $2}')"
+  if [[ -z "${gid:-}" ]]; then
+    echo "ERROR: failed to resolve gid for group '${group}'" >&2
+    exit 1
+  fi
+
+  # Pick an unused UID in the 401..499 range (service users)
+  local uid=""
+  for cand in $(seq 401 499); do
+    if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+      uid="${cand}"
+      break
+    fi
+  done
+  if [[ -z "${uid:-}" ]]; then
+    echo "ERROR: no free UID found in 401..499 for user '${user}'" >&2
+    exit 1
+  fi
+
+  sudo mkdir -p "${home}"
+
+  sudo dscl . -create "/Users/${user}"
+  sudo dscl . -create "/Users/${user}" UserShell /usr/bin/false
+  sudo dscl . -create "/Users/${user}" RealName "heartmula service user"
+  sudo dscl . -create "/Users/${user}" UniqueID "${uid}"
+  sudo dscl . -create "/Users/${user}" PrimaryGroupID "${gid}"
+  sudo dscl . -create "/Users/${user}" NFSHomeDirectory "${home}"
+  sudo dscl . -create "/Users/${user}" Password '*'
+
+  sudo dscl . -append "/Groups/${group}" GroupMembership "${user}" >/dev/null 2>&1 || true
+}
+
+# Create the service user early so directory ownership is correct from the start.
+ensure_service_user "${HEARTMULA_USER}" "${HEARTMULA_GROUP}" "${HEARTMULA_HOME}"
+
+sudo mkdir -p "${HEARTMULA_HOME}"/{cache,models,run} /var/log/heartmula
+
+sudo chown -R "${HEARTMULA_USER}":"${HEARTMULA_GROUP}" "${HEARTMULA_HOME}" /var/log/heartmula
+sudo chmod 750 "${HEARTMULA_HOME}" /var/log/heartmula
 
 sudo mkdir -p "${HEARTMULA_VENV}"
 sudo chown -R root:wheel "${HEARTMULA_VENV}"

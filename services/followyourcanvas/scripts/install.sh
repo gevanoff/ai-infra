@@ -21,6 +21,7 @@ fi
 require_cmd systemctl
 require_cmd git
 require_cmd python3
+require_cmd id
 
 LABEL="followyourcanvas"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -34,6 +35,39 @@ RUNTIME_DIR="/var/lib/followyourcanvas"
 LOG_DIR="/var/log/followyourcanvas"
 FYC_USER="${FYC_USER:-followyourcanvas}"
 
+ensure_service_user() {
+  local user="$1"
+  local home="$2"
+
+  if id -u "$user" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  require_cmd useradd
+  require_cmd groupadd
+  require_cmd getent
+
+  if ! getent group "$user" >/dev/null 2>&1; then
+    groupadd --system "$user"
+  fi
+
+  local nologin_shell="/usr/sbin/nologin"
+  if [[ ! -x "$nologin_shell" ]]; then
+    nologin_shell="/sbin/nologin"
+  fi
+
+  useradd --system \
+    --gid "$user" \
+    --home-dir "$home" \
+    --create-home \
+    --shell "$nologin_shell" \
+    "$user"
+}
+
+# Create the service user early so all subsequent mkdir/chown operations have
+# correct ownership from the start.
+ensure_service_user "$FYC_USER" "$RUNTIME_DIR"
+
 if [[ -f "${ENV_DST}" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -44,12 +78,6 @@ fi
 if [[ -z "${FYC_REPO_URL:-}" ]]; then
   echo "ERROR: FYC_REPO_URL is required (export it before running install.sh)." >&2
   echo "Example: FYC_REPO_URL=https://github.com/your-org/FollowYourCanvas.git" >&2
-  exit 1
-fi
-
-if ! id -u "${FYC_USER}" >/dev/null 2>&1; then
-  echo "ERROR: user '${FYC_USER}' does not exist on this machine" >&2
-  echo "Hint: create it (useradd -r -m ${FYC_USER}) or set FYC_USER." >&2
   exit 1
 fi
 
