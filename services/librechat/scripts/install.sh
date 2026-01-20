@@ -74,6 +74,15 @@ write_exec_wrapper() {
   local dst="$1"
   local target="$2"
 
+  # Defensive: only allow a single absolute path with no whitespace.
+  target="${target%%$'\n'*}"
+  target="${target%%$'\r'*}"
+  target="${target# }"; target="${target% }"
+  if [[ -z "${target}" || "${target}" != /* || "${target}" == *[$'\t ']* ]]; then
+    echo "ERROR: invalid wrapper target path: '${target}'" >&2
+    exit 2
+  fi
+
   sudo tee "$dst" >/dev/null <<EOF
 #!/bin/sh
 exec "${target}" "\$@"

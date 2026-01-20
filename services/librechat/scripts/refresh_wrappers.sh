@@ -68,6 +68,15 @@ write_exec_wrapper() {
   local dst="$1"
   local target="$2"
 
+  # Defensive: only allow a single absolute path with no whitespace.
+  target="${target%%$'\n'*}"
+  target="${target%%$'\r'*}"
+  target="${target# }"; target="${target% }"
+  if [[ -z "${target}" || "${target}" != /* || "${target}" == *[$'\t ']* ]]; then
+    echo "ERROR: invalid wrapper target path: '${target}'" >&2
+    exit 2
+  fi
+
   sudo tee "$dst" >/dev/null <<EOF
 #!/bin/sh
 exec "${target}" "\$@"
@@ -108,6 +117,11 @@ write_exec_wrapper "$bin_dir/node" "$node_src"
 write_exec_wrapper "$bin_dir/mongod" "$mongod_src"
 
 echo "Wrote wrappers under $bin_dir" >&2
+
+# Best-effort sanity checks (non-fatal). These catch broken wrappers that cause
+# confusing errors like "Cannot find module '/var/lib/librechat/bin/node /opt/homebrew/bin/node'".
+sudo -u librechat -H "$bin_dir/node" -v >/dev/null 2>&1 || echo "WARN: node wrapper did not execute cleanly" >&2
+sudo -u librechat -H "$bin_dir/mongod" --version >/dev/null 2>&1 || echo "WARN: mongod wrapper did not execute cleanly" >&2
 
 if [[ "$DO_RESTART" == "true" ]]; then
   here="$(cd "$(dirname "$0")" && pwd)"

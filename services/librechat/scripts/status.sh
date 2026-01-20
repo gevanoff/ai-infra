@@ -21,3 +21,9 @@ sudo lsof -nP -iTCP:${PORT} -sTCP:LISTEN || true
 echo "== logs (tail) ==" >&2
 sudo tail -n 60 /var/log/librechat/mongodb.err.log 2>/dev/null || true
 sudo tail -n 60 /var/log/librechat/librechat.err.log 2>/dev/null || true
+sudo tail -n 40 /var/log/librechat/librechat.out.log 2>/dev/null || true
+
+if sudo tail -n 200 /var/log/librechat/librechat.err.log 2>/dev/null | grep -q "Cannot find module '/var/lib/librechat/bin/node "; then
+  echo "HINT: Your /var/lib/librechat/bin/node wrapper is malformed. Fix with:" >&2
+  echo "  services/librechat/scripts/refresh_wrappers.sh" >&2
+fi
