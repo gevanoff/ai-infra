@@ -104,10 +104,16 @@ if [[ "${LIBRECHAT_APPLY_PATCHES}" == "1" && -d "${PATCHES_DIR}" ]]; then
         elif git apply --reverse --check "$p" >/dev/null 2>&1; then
           echo "Patch already applied: ${p}" >&2
         else
-          echo "ERROR: patch did not apply cleanly: ${p}" >&2
-          echo "Hint: upstream LibreChat changed; refresh the patch in ai-infra/services/librechat/patches/" >&2
-          echo "To bypass patches: export LIBRECHAT_APPLY_PATCHES=0" >&2
-          exit 2
+          echo "WARN: patch did not apply cleanly; attempting 3-way apply: ${p}" >&2
+          if git apply --3way "$p" >/dev/null 2>&1; then
+            echo "Applied with 3-way merge: ${p}" >&2
+          else
+            echo "ERROR: patch failed to apply (even with 3-way): ${p}" >&2
+            echo "Hint: upstream LibreChat changed; refresh the patch in ai-infra/services/librechat/patches/" >&2
+            echo "To bypass patches: export LIBRECHAT_APPLY_PATCHES=0" >&2
+            git reset --hard HEAD >/dev/null 2>&1 || true
+            exit 2
+          fi
         fi
       done
     )
