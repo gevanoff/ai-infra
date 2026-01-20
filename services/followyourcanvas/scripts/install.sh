@@ -38,6 +38,7 @@ VENV_DIR="/var/lib/followyourcanvas/venv"
 RUNTIME_DIR="/var/lib/followyourcanvas"
 LOG_DIR="/var/log/followyourcanvas"
 FYC_USER="${FYC_USER:-followyourcanvas}"
+FYC_REPO_URL_DEFAULT="https://github.com/mayuelala/FollowYourCanvas.git"
 
 ensure_service_user() {
   local user="$1"
@@ -89,12 +90,8 @@ if [[ -f "${ENV_DST}" ]]; then
 fi
 
 if [[ -z "${FYC_REPO_URL:-}" ]]; then
-  echo "ERROR: FYC_REPO_URL is required." >&2
-  echo "Set it either in ${ENV_DST} (recommended) or via env when invoking the script." >&2
-  echo "Examples:" >&2
-  echo "  sudo -E FYC_REPO_URL=https://github.com/mayuelala/FollowYourCanvas.git ${HERE}/install.sh" >&2
-  echo "  FYC_REPO_URL=https://github.com/mayuelala/FollowYourCanvas.git ${HERE}/install.sh" >&2
-  exit 1
+  # Default to the canonical upstream repo; allow override via env file or CLI env.
+  FYC_REPO_URL="${FYC_REPO_URL_DEFAULT}"
 fi
 
 mkdir -p "${RUNTIME_DIR}" "${LOG_DIR}"
