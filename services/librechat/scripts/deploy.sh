@@ -61,6 +61,9 @@ require_cmd node
 require_cmd npm
 require_cmd curl
 
+PATCHES_DIR="${HERE}/../patches"
+LIBRECHAT_APPLY_PATCHES="${LIBRECHAT_APPLY_PATCHES:-1}"
+
 PORT="${LIBRECHAT_PORT:-3080}"
 HEALTH_WAIT_SECONDS="${LIBRECHAT_HEALTH_WAIT_SECONDS:-90}"
 CURL_CONNECT_TIMEOUT_SECONDS="${LIBRECHAT_CURL_CONNECT_TIMEOUT_SECONDS:-2}"
@@ -85,6 +88,30 @@ else
   echo "Cloning LibreChat into ${SRC_DIR}..." >&2
   mkdir -p "$(dirname "$SRC_DIR")"
   git clone "$LIBRECHAT_GIT_URL" "$SRC_DIR"
+fi
+
+if [[ "${LIBRECHAT_APPLY_PATCHES}" == "1" && -d "${PATCHES_DIR}" ]]; then
+  shopt -s nullglob
+  patch_files=("${PATCHES_DIR}"/*.patch)
+  shopt -u nullglob
+  if (( ${#patch_files[@]} > 0 )); then
+    echo "Applying ai-infra LibreChat patches..." >&2
+    (
+      cd "${SRC_DIR}" || exit 1
+      for p in "${patch_files[@]}"; do
+        if git apply --check "$p" >/dev/null 2>&1; then
+          git apply "$p"
+        elif git apply --reverse --check "$p" >/dev/null 2>&1; then
+          echo "Patch already applied: ${p}" >&2
+        else
+          echo "ERROR: patch did not apply cleanly: ${p}" >&2
+          echo "Hint: upstream LibreChat changed; refresh the patch in ai-infra/services/librechat/patches/" >&2
+          echo "To bypass patches: export LIBRECHAT_APPLY_PATCHES=0" >&2
+          exit 2
+        fi
+      done
+    )
+  fi
 fi
 
 echo "Deploying LibreChat into /var/lib/librechat/app..." >&2

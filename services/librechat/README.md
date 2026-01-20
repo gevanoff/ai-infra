@@ -59,6 +59,16 @@ From `services/librechat/scripts/`:
 
 If not found, it will clone from `LIBRECHAT_GIT_URL` (defaults to `https://github.com/danny-avila/LibreChat.git`).
 
+## ai-infra managed patches (recommended)
+
+Some behavior tweaks are maintained in this repo as git-apply patches under `services/librechat/patches/`.
+
+During `deploy.sh`, patches are applied to the LibreChat source checkout after `git pull` and before rsync/build.
+This keeps the deployment reproducible without requiring a fork of LibreChat.
+
+- Disable patching: set `LIBRECHAT_APPLY_PATCHES=0`
+- If a patch fails to apply, it usually means upstream LibreChat changed and the patch needs to be refreshed.
+
 ## Notes
 
 - This setup is HTTP-only. Keep it LAN-only (pf rule enforces this for port 3080).
