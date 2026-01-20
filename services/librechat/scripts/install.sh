@@ -135,7 +135,7 @@ set_env_var_if_missing_or_empty() {
   fi
 
   local current
-  current=$(sudo awk -F= -v k="$key" '$1==k {print substr($0, index($0,$2)); exit}' "$env_file" 2>/dev/null || true)
+  current="$(read_env_var "$env_file" "$key")"
   if [[ -z "${current}" ]]; then
     sudo sed -i '' "s|^${key}=.*$|${key}=${value}|" "$env_file"
   fi
@@ -147,7 +147,7 @@ read_env_var() {
   [[ -f "$env_file" ]] || return 0
 
   local raw
-  raw="$(sudo awk -F= -v k="$key" '$1==k {sub(/^'"$key"'=/, ""); print; exit}' "$env_file" 2>/dev/null || true)"
+  raw="$(sudo awk -F= -v k="$key" '$1==k {print substr($0, length(k)+2); exit}' "$env_file" 2>/dev/null || true)"
   raw="${raw%$'\r'}"
   raw="${raw#\"}"; raw="${raw%\"}"
   raw="${raw#\'}"; raw="${raw%\'}"
@@ -340,6 +340,11 @@ install_plists() {
       echo "Hint: this is often caused by launchd rejecting user-writable executables." >&2
       echo "Diag: ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/mongod" >&2
       ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/mongod 2>/dev/null || true
+      if command -v log >/dev/null 2>&1; then
+        echo "Diag: recent launchd logs:" >&2
+        sudo log show --last 2m --predicate 'process == "launchd"' --style compact 2>/dev/null | tail -n 80 >&2 || true
+      fi
+      echo "Hint: try: services/librechat/scripts/refresh_wrappers.sh --no-restart" >&2
       exit 1
     fi
   fi
@@ -355,6 +360,11 @@ install_plists() {
         echo "ERROR: launchctl bootstrap failed for LibreChat." >&2
         echo "Diag: ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/node" >&2
         ls -ld /var/lib/librechat/bin /var/lib/librechat/bin/node 2>/dev/null || true
+        if command -v log >/dev/null 2>&1; then
+          echo "Diag: recent launchd logs:" >&2
+          sudo log show --last 2m --predicate 'process == "launchd"' --style compact 2>/dev/null | tail -n 80 >&2 || true
+        fi
+        echo "Hint: try: services/librechat/scripts/refresh_wrappers.sh --no-restart" >&2
         exit 1
       fi
     fi
