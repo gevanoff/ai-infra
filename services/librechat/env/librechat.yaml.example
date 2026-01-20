@@ -29,8 +29,13 @@ endpoints:
   custom:
     - name: 'gateway'
       apiKey: '${GATEWAY_BEARER_TOKEN}'
-      baseURL: 'http://ai2:8800/v1'
+      # Use localhost by default. Many gateway deployments bind to 127.0.0.1
+      # (LAN access is meant to be via LibreChat on port 3080, not directly to 8800).
+      # If LibreChat is on a different host than the gateway, change this to the gateway host/IP.
+      baseURL: 'http://127.0.0.1:8800/v1'
       models:
         default: ['auto']
-        fetch: true
+        # Prefer a static model list so LibreChat doesn't depend on /v1/models.
+        # If your gateway implements /v1/models, you can set this to true.
+        fetch: false
       modelDisplayLabel: 'gateway'

@@ -99,6 +99,13 @@ sudo rsync -a --delete \
 
 sudo chown -R librechat:staff /var/lib/librechat/app
 
+# LibreChat writes rotating error logs under app/logs by default.
+# If anything created these as root previously (e.g., an accidental sudo run),
+# user-management scripts like `npm run create-user` can fail with EACCES.
+sudo mkdir -p /var/lib/librechat/app/logs
+sudo chown -R librechat:staff /var/lib/librechat/app/logs
+sudo chmod 750 /var/lib/librechat/app/logs
+
 # Ensure npm cache is service-owned. This prevents EACCES when the invoking user
 # has a root-owned ~/.npm cache from prior npm versions.
 sudo mkdir -p /var/lib/librechat/npm-cache

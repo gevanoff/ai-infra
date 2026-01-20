@@ -166,11 +166,29 @@ sudo rsync -a --delete \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
   "${SRC_DIR}/" "${APP_DIR}/"
 
+# The gateway reads required settings from /var/lib/gateway/app/.env.
+# We exclude .env from rsync, so preserve it but ensure it is readable by the service user.
+ENV_DST="${APP_DIR}/.env"
+if [[ -f "${ENV_DST}" ]]; then
+  sudo chown gateway:staff "${ENV_DST}"
+  sudo chmod 640 "${ENV_DST}"
+else
+  echo "WARNING: ${ENV_DST} not found; gateway will not start without GATEWAY_BEARER_TOKEN." >&2
+fi
+
 # ---- install/update Python dependencies ----
 echo "Installing Python dependencies..."
 if [[ -f "${APP_DIR}/app/requirements.freeze.txt" ]]; then
   sudo -H -u gateway "${PYTHON_BIN}" -m pip install --quiet --no-warn-script-location -r "${APP_DIR}/app/requirements.freeze.txt"
   echo "Dependencies installed from app/requirements.freeze.txt"
+
+  # Sanity check: required at import-time by app/backends.py
+  if ! sudo -H -u gateway "${PYTHON_BIN}" -c "import yaml" >/dev/null 2>&1; then
+    echo "ERROR: PyYAML is not importable in ${PYTHON_BIN} environment." >&2
+    echo "Hint: Python version may be too new for prebuilt wheels; recreate /var/lib/gateway/env with python3.12." >&2
+    sudo "${PYTHON_BIN}" -V 2>&1 || true
+    exit 1
+  fi
 else
   echo "WARNING: app/requirements.freeze.txt not found, skipping dependency install" >&2
 fi

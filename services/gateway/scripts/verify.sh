@@ -109,7 +109,13 @@ fi
 
 echo "Base URL: ${BASE_URL}"
 
-"${PYTHON_BIN}" "${SCRIPT_PATH}" --skip-pytest --base-url "${BASE_URL}" --token "${TOKEN}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+if ! "${PYTHON_BIN}" "${SCRIPT_PATH}" --skip-pytest --base-url "${BASE_URL}" --token "${TOKEN}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; then
+  echo "" >&2
+  echo "Verifier failed. If you see 'Connection refused', the gateway is not currently listening." >&2
+  echo "Next: sudo services/gateway/scripts/status.sh" >&2
+  echo "Then: sudo services/gateway/scripts/restart.sh" >&2
+  exit 1
+fi
 
 if [[ ${RUN_PYTEST} -eq 1 ]]; then
   if [[ ! -d "/var/lib/gateway/app" ]]; then

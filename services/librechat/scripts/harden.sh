@@ -218,6 +218,12 @@ if dry_run:
     print('DRY RUN: changes would be applied. Diff preview not shown (run without --dry-run).')
     sys.exit(0)
 
+# Preserve existing file ownership/permissions across atomic-ish replace.
+st = os.stat(path)
+orig_mode = st.st_mode & 0o777
+orig_uid = st.st_uid
+orig_gid = st.st_gid
+
 # Atomic-ish write: write temp then replace
 import tempfile
 fd, tmp = tempfile.mkstemp(prefix='librechat.yaml.', suffix='.tmp', dir=os.path.dirname(path))
@@ -225,6 +231,13 @@ os.close(fd)
 with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
     f.write(new_text)
 os.replace(tmp, path)
+
+# Re-apply original perms in case the temp file was created with different defaults.
+try:
+  os.chown(path, orig_uid, orig_gid)
+except PermissionError:
+  pass
+os.chmod(path, orig_mode)
 print('Applied hardening changes.')
 PY
 

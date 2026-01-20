@@ -49,11 +49,21 @@ sudo chmod -R go-w "${GATEWAY_VENV}"
 
 # Ensure a venv exists (used by the plist)
 if [[ ! -x "${VENV_PY}" ]]; then
-  if ! command -v python3 >/dev/null 2>&1; then
+  # Prefer a stable Python version. Very new/preview versions can cause
+  # dependency install failures (e.g., PyYAML wheels not available yet).
+  PY_BOOTSTRAP=""
+  for cand in python3.12 python3.11 python3.10 python3; do
+    if command -v "${cand}" >/dev/null 2>&1; then
+      PY_BOOTSTRAP="${cand}"
+      break
+    fi
+  done
+  if [[ -z "${PY_BOOTSTRAP}" ]]; then
     echo "ERROR: python3 not found (needed to create /var/lib/gateway/env venv)" >&2
     exit 1
   fi
-  sudo python3 -m venv "${GATEWAY_VENV}"
+  echo "Creating gateway venv with ${PY_BOOTSTRAP}..." >&2
+  sudo "${PY_BOOTSTRAP}" -m venv "${GATEWAY_VENV}"
   sudo "${VENV_PY}" -m pip install -U pip >/dev/null
   sudo chown -R root:wheel "${GATEWAY_VENV}"
   sudo chmod -R go-w "${GATEWAY_VENV}"
@@ -71,6 +81,14 @@ fi
 if [[ -n "${REQ_FILE}" ]]; then
   echo "Installing gateway Python dependencies from ${REQ_FILE}..." >&2
   sudo "${VENV_PY}" -m pip install -r "${REQ_FILE}"
+
+  # Sanity check: required at import-time by app/backends.py
+  if ! sudo "${VENV_PY}" -c "import yaml" >/dev/null 2>&1; then
+    echo "ERROR: PyYAML is not importable in ${GATEWAY_VENV}." >&2
+    echo "Hint: rerun deploy.sh (to reinstall deps), or recreate the venv with python3.12 (recommended)." >&2
+    echo "Diag: ${VENV_PY} -V => $(sudo "${VENV_PY}" -V 2>&1 || true)" >&2
+    exit 1
+  fi
 else
   echo "NOTE: requirements not found at ${REQ1} or ${REQ2}; skipping pip install." >&2
   echo "Hint: run the gateway deploy script to populate /var/lib/gateway/app, then rerun install.sh." >&2
@@ -90,6 +108,13 @@ if [[ ! -f "${ENV_DST}" && -f "${ENV_EXAMPLE}" ]]; then
   sudo chown gateway:staff "${ENV_DST}"
   sudo chmod 640 "${ENV_DST}"
   echo "NOTE: seeded ${ENV_DST} from gateway.env.example; set GATEWAY_BEARER_TOKEN." >&2
+fi
+
+# Even if the env file already existed, ensure the service user can read it.
+# This commonly breaks if an operator edited it with sudo (root-owned, unreadable).
+if [[ -f "${ENV_DST}" ]]; then
+  sudo chown gateway:staff "${ENV_DST}"
+  sudo chmod 640 "${ENV_DST}"
 fi
 
 # Install plist

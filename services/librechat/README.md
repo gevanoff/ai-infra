@@ -64,6 +64,30 @@ If not found, it will clone from `LIBRECHAT_GIT_URL` (defaults to `https://githu
 - This setup is HTTP-only. Keep it LAN-only (pf rule enforces this for port 3080).
 - MongoDB is bound to `127.0.0.1` only.
 
+## Creating users (admin-created accounts)
+
+If `ALLOW_REGISTRATION=false`, create accounts from the host as the service user:
+
+```bash
+sudo -u librechat env HOME=/var/lib/librechat NPM_CONFIG_CACHE=/var/lib/librechat/npm-cache bash -lc 'cd /var/lib/librechat/app && npm run create-user'
+```
+
+### Troubleshooting: `EACCES ... app/logs/error-YYYY-MM-DD.log`
+
+If you see an error like:
+
+- `permission denied, open '/private/var/lib/librechat/app/logs/error-YYYY-MM-DD.log'`
+
+it means `/var/lib/librechat/app/logs` exists but isnt writable by the `librechat` user (often caused by accidentally running a prior LibreChat command with `sudo` and creating root-owned log files).
+
+Fix it on the host:
+
+```bash
+sudo mkdir -p /var/lib/librechat/app/logs
+sudo chown -R librechat:staff /var/lib/librechat/app/logs
+sudo chmod 750 /var/lib/librechat/app/logs
+```
+
 ## Actions + MCP (disabled by default)
 
 The provided template config in ai-infra/services/librechat/env/librechat.yaml.example disables the two highest-risk “tool surfaces” by default:

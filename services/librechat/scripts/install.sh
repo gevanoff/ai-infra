@@ -338,6 +338,12 @@ sudo mkdir -p /var/lib/librechat/{app,data,mongo} /var/lib/librechat/mongo/data 
 sudo chown -R librechat:staff /var/lib/librechat /var/log/librechat
 sudo chmod -R u+rwX,g+rX,o-rwx /var/lib/librechat /var/log/librechat
 
+# LibreChat also writes app-level logs under the working tree by default.
+# Ensure the directory exists and is writable by the service user.
+sudo mkdir -p /var/lib/librechat/app/logs
+sudo chown -R librechat:staff /var/lib/librechat/app/logs
+sudo chmod 750 /var/lib/librechat/app/logs
+
 ensure_secure_binaries
 
 seed_configs
