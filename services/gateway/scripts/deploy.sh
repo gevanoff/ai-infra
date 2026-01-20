@@ -141,8 +141,8 @@ CURL_MAX_TIME_SEC="2"
 
 # ---- safety checks ----
 
-if [[ ! -d "${RUNTIME_ROOT}" ]]; then
-  echo "ERROR: runtime root ${RUNTIME_ROOT} does not exist" >&2
+if ! sudo test -d "${RUNTIME_ROOT}" 2>/dev/null; then
+  echo "ERROR: runtime root ${RUNTIME_ROOT} does not exist (or is not accessible)" >&2
   echo "Hint: create it with: sudo mkdir -p ${RUNTIME_ROOT}" >&2
   exit 1
 fi
@@ -178,10 +178,10 @@ if ! id -u gateway >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -x "${PYTHON_BIN}" ]]; then
+if ! sudo test -x "${PYTHON_BIN}" 2>/dev/null; then
   echo "ERROR: expected python not found/executable: ${PYTHON_BIN}" >&2
-  echo "Hint: the plist runs ${PYTHON_BIN} -m uvicorn from /var/lib/gateway/app" >&2
-  echo "Hint: create the venv at /var/lib/gateway/env and install deps." >&2
+  echo "Hint: this can mean the venv is missing, or your user cannot traverse ${RUNTIME_ROOT}." >&2
+  echo "Hint: run: services/gateway/scripts/install.sh (or install.sh --recreate-venv)" >&2
   exit 1
 fi
 
