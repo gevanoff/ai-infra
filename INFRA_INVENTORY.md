@@ -16,6 +16,8 @@ This document is a factual inventory of infrastructure components described by t
 - `ai-infra/README.md`
 - `ai-infra/services/gateway/README.md`
 - `ai-infra/services/gateway/launchd/com.ai.gateway.plist.example`
+- `ai-infra/services/followyourcanvas/README.md`
+- `ai-infra/services/followyourcanvas/systemd/followyourcanvas.service`
 - `ai-infra/services/ollama/launchd/com.ollama.service.plist.example`
 - `ai-infra/services/mlx/launchd/com.mlx.openai.server.plist.example`
 - `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
@@ -91,8 +93,14 @@ Source: `ai-infra/services/gateway/env/gateway.env.example`
   - `ai-infra/services/mlx/`
   - `ai-infra/services/nexa/`
   - `ai-infra/services/all/`
+  - `ai-infra/services/followyourcanvas/`
 
 Source: `ai-infra/README.md`
+
+- FollowYourCanvas systemd unit template:
+  - `ai-infra/services/followyourcanvas/systemd/followyourcanvas.service`
+
+Source: `ai-infra/services/followyourcanvas/systemd/followyourcanvas.service`
 
 - Common per-service structure described:
   - `launchd/*.plist.example`

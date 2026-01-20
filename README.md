@@ -8,6 +8,7 @@ macOS launchd-based infrastructure scripts for running local AI services.
 - `services/heartmula`: HeartMula music generation runtime (for gateway audio backends).
 - `services/ollama`: Ollama runtime + model manifest.
 - `services/mlx`: MLX OpenAI server runtime + model manifest.
+- `services/followyourcanvas`: FollowYourCanvas video generation backend (Linux/systemd).
 - `services/all`: convenience scripts that call all services.
 
 Each service follows the same pattern:
