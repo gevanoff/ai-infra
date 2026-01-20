@@ -14,8 +14,12 @@ if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Linux" ]]; then
 fi
 
 if [[ "$EUID" -ne 0 ]]; then
-  echo "ERROR: run as root (sudo ./install.sh)." >&2
-  exit 1
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "ERROR: this installer must run as root (sudo not found)." >&2
+    exit 1
+  fi
+  # Re-exec as root and preserve environment variables (notably FYC_REPO_URL).
+  exec sudo -E bash "$0" "$@"
 fi
 
 require_cmd systemctl
@@ -68,6 +72,15 @@ ensure_service_user() {
 # correct ownership from the start.
 ensure_service_user "$FYC_USER" "$RUNTIME_DIR"
 
+# Ensure the env file exists early so users can configure the service via
+# /var/lib/followyourcanvas/followyourcanvas.env (sudo does not always preserve env vars).
+if [[ ! -f "${ENV_DST}" ]]; then
+  mkdir -p "$(dirname "${ENV_DST}")"
+  cp "${ENV_EXAMPLE}" "${ENV_DST}"
+  chown "${FYC_USER}":"${FYC_USER}" "${ENV_DST}"
+  chmod 640 "${ENV_DST}" || true
+fi
+
 if [[ -f "${ENV_DST}" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -76,8 +89,11 @@ if [[ -f "${ENV_DST}" ]]; then
 fi
 
 if [[ -z "${FYC_REPO_URL:-}" ]]; then
-  echo "ERROR: FYC_REPO_URL is required (export it before running install.sh)." >&2
-  echo "Example: FYC_REPO_URL=https://github.com/your-org/FollowYourCanvas.git" >&2
+  echo "ERROR: FYC_REPO_URL is required." >&2
+  echo "Set it either in ${ENV_DST} (recommended) or via env when invoking the script." >&2
+  echo "Examples:" >&2
+  echo "  sudo -E FYC_REPO_URL=https://github.com/mayuelala/FollowYourCanvas.git ${HERE}/install.sh" >&2
+  echo "  FYC_REPO_URL=https://github.com/mayuelala/FollowYourCanvas.git ${HERE}/install.sh" >&2
   exit 1
 fi
 
@@ -107,11 +123,6 @@ if [[ -f "${APP_DIR}/requirements.txt" ]]; then
   sudo -u "${FYC_USER}" "${VENV_DIR}/bin/pip" install -r "${APP_DIR}/requirements.txt"
 else
   echo "WARNING: ${APP_DIR}/requirements.txt not found; install dependencies manually." >&2
-fi
-
-if [[ ! -f "${ENV_DST}" ]]; then
-  cp "${ENV_EXAMPLE}" "${ENV_DST}"
-  chown "${FYC_USER}":"${FYC_USER}" "${ENV_DST}"
 fi
 
 set -a
