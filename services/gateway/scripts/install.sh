@@ -23,9 +23,46 @@ SRC="${HERE}/../launchd/${LABEL}.plist.example"
 DST="/Library/LaunchDaemons/${LABEL}.plist"
 VENV_PY="/var/lib/gateway/env/bin/python"
 GATEWAY_VENV="${GATEWAY_VENV:-/var/lib/gateway/env}"
+RECREATE_VENV=0
 REQ1="/var/lib/gateway/app/app/requirements.txt"
 REQ2="/var/lib/gateway/app/app/requirements.freeze.txt"
 TOOLS_REQ="/var/lib/gateway/app/tools/requirements.txt"
+
+usage() {
+  cat <<EOF
+Usage: $0 [--recreate-venv]
+
+Installs/updates the gateway launchd plist and Python environment.
+
+Flags:
+  --recreate-venv   Delete and recreate ${GATEWAY_VENV} (useful if python version is too new and PyYAML can't install).
+
+Env:
+  GATEWAY_RECREATE_VENV=1   Same as --recreate-venv.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --recreate-venv)
+      RECREATE_VENV=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown arg: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "${GATEWAY_RECREATE_VENV:-}" == "1" ]]; then
+  RECREATE_VENV=1
+fi
 
 # Runtime dirs expected by the gateway
 sudo mkdir -p /var/lib/gateway/{app,data,tools} /var/lib/gateway/data/tools /var/log/gateway
@@ -48,6 +85,12 @@ sudo chown -R root:wheel "${GATEWAY_VENV}"
 sudo chmod -R go-w "${GATEWAY_VENV}"
 
 # Ensure a venv exists (used by the plist)
+if [[ "${RECREATE_VENV}" == "1" && -d "${GATEWAY_VENV}" ]]; then
+  echo "Recreating gateway venv at ${GATEWAY_VENV}..." >&2
+  sudo launchctl bootout system/"${LABEL}" 2>/dev/null || true
+  sudo rm -rf "${GATEWAY_VENV}"
+fi
+
 if [[ ! -x "${VENV_PY}" ]]; then
   # Prefer a stable Python version. Very new/preview versions can cause
   # dependency install failures (e.g., PyYAML wheels not available yet).
@@ -85,8 +128,8 @@ if [[ -n "${REQ_FILE}" ]]; then
   # Sanity check: required at import-time by app/backends.py
   if ! sudo "${VENV_PY}" -c "import yaml" >/dev/null 2>&1; then
     echo "ERROR: PyYAML is not importable in ${GATEWAY_VENV}." >&2
-    echo "Hint: rerun deploy.sh (to reinstall deps), or recreate the venv with python3.12 (recommended)." >&2
     echo "Diag: ${VENV_PY} -V => $(sudo "${VENV_PY}" -V 2>&1 || true)" >&2
+    echo "Hint: set GATEWAY_RECREATE_VENV=1 (or pass --recreate-venv) to rebuild the venv with python3.12." >&2
     exit 1
   fi
 else

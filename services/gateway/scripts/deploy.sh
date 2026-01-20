@@ -23,6 +23,8 @@ require_cmd sed
 require_cmd tail
 
 POST_DEPLOY_HOOK=0
+GIT_UPDATE=0
+GIT_REF=""
 
 usage() {
   cat <<EOF
@@ -30,11 +32,18 @@ Usage: $0 [--post-deploy-hook]
 
 Deploys the gateway repo into /var/lib/gateway/app and restarts launchd.
 
+If the gateway source tree is a git repo, you can optionally force it to a
+specific ref before deploying.
+
 Flags:
   --post-deploy-hook   After a successful deploy, run freeze_release.sh then appliance_smoketest.sh.
+  --git-update         If SRC_DIR is a git repo, fetch and hard-reset to --git-ref.
+  --git-ref <ref>      Git ref to deploy when --git-update is set (default: origin/main).
 
 Env:
   GATEWAY_POST_DEPLOY_HOOK=1   Same as --post-deploy-hook.
+  GATEWAY_GIT_UPDATE=1         Same as --git-update.
+  GATEWAY_GIT_REF=<ref>        Same as --git-ref.
 EOF
 }
 
@@ -43,6 +52,18 @@ while [[ $# -gt 0 ]]; do
     --post-deploy-hook)
       POST_DEPLOY_HOOK=1
       shift
+      ;;
+    --git-update)
+      GIT_UPDATE=1
+      shift
+      ;;
+    --git-ref)
+      GIT_REF="${2:-}"
+      if [[ -z "${GIT_REF}" ]]; then
+        echo "ERROR: --git-ref requires a value" >&2
+        exit 2
+      fi
+      shift 2
       ;;
     -h|--help)
       usage
@@ -59,6 +80,16 @@ done
 if [[ "${GATEWAY_POST_DEPLOY_HOOK:-}" == "1" ]]; then
   POST_DEPLOY_HOOK=1
 fi
+
+if [[ "${GATEWAY_GIT_UPDATE:-}" == "1" ]]; then
+  GIT_UPDATE=1
+fi
+
+# If the flag wasn't provided, allow env to set the ref.
+if [[ -z "${GIT_REF}" && -n "${GATEWAY_GIT_REF:-}" ]]; then
+  GIT_REF="${GATEWAY_GIT_REF}"
+fi
+
 
 # ---- config (edit if your labels/paths differ) ----
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -119,6 +150,27 @@ fi
 echo "Source:  ${SRC_DIR}"
 echo "Deploy:  ${APP_DIR}"
 echo "Label:   ${LAUNCHD_LABEL}"
+
+if [[ -d "${SRC_DIR}/.git" ]]; then
+  SRC_COMMIT="$(git -C "${SRC_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "${SRC_COMMIT}" ]]; then
+    echo "Source commit: ${SRC_COMMIT}"
+  fi
+
+  if [[ "${GIT_UPDATE}" == "1" ]]; then
+    require_cmd git
+    REF="${GIT_REF:-origin/main}"
+    echo "Updating gateway source repo to ${REF} (HARD RESET)..." >&2
+    git -C "${SRC_DIR}" fetch --prune origin >&2
+    git -C "${SRC_DIR}" checkout --detach "${REF}" >&2
+    git -C "${SRC_DIR}" reset --hard "${REF}" >&2
+
+    SRC_COMMIT="$(git -C "${SRC_DIR}" rev-parse HEAD 2>/dev/null || true)"
+    if [[ -n "${SRC_COMMIT}" ]]; then
+      echo "Updated source commit: ${SRC_COMMIT}" >&2
+    fi
+  fi
+fi
 
 if ! id -u gateway >/dev/null 2>&1; then
   echo "ERROR: user 'gateway' does not exist on this machine" >&2
