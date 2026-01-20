@@ -60,7 +60,11 @@ pass "Gateway is listening on TCP/8800"
 echo "Checking gateway chat smoke test (/v1/chat/completions)..."
 GATEWAY_TOKEN_RAW="$(${SUDO} awk -F= '/^GATEWAY_BEARER_TOKEN=/{sub(/^GATEWAY_BEARER_TOKEN=/, ""); print; exit}' "$ENV_FILE" 2>/dev/null || true)"
 GATEWAY_TOKEN="${GATEWAY_TOKEN_RAW%$'\r'}"
-GATEWAY_TOKEN="${GATEWAY_TOKEN%"}"; GATEWAY_TOKEN="${GATEWAY_TOKEN#"}"
+# If the env value is quoted (e.g. GATEWAY_BEARER_TOKEN="..."), strip wrapping quotes.
+GATEWAY_TOKEN="${GATEWAY_TOKEN#\"}"
+GATEWAY_TOKEN="${GATEWAY_TOKEN%\"}"
+GATEWAY_TOKEN="${GATEWAY_TOKEN#\'}"
+GATEWAY_TOKEN="${GATEWAY_TOKEN%\'}"
 
 [[ -n "${GATEWAY_TOKEN}" ]] || fail "Could not read GATEWAY_BEARER_TOKEN from $ENV_FILE"
 
