@@ -12,6 +12,7 @@ hosts:
       - gateway
       - mlx
       - librechat
+      - heartmula
     
   ai1:
     hostname: ai1
@@ -52,5 +53,10 @@ services:
 
   librechat:
     port: 3080
+    healthz: /health
+    requires_auth: false
+
+  heartmula:
+    port: 9920
     healthz: /health
     requires_auth: false

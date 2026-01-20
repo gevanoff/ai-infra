@@ -378,4 +378,5 @@ fi
 # Fallback: run all known statuses but never hard-fail the wrapper.
 run_status "ollama"
 run_status "mlx"
+run_status "heartmula"
 run_status "gateway"
