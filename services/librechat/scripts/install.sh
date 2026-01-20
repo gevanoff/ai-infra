@@ -141,6 +141,38 @@ set_env_var_if_missing_or_empty() {
   fi
 }
 
+read_env_var() {
+  local env_file="$1"
+  local key="$2"
+  [[ -f "$env_file" ]] || return 0
+
+  local raw
+  raw="$(sudo awk -F= -v k="$key" '$1==k {sub(/^'"$key"'=/, ""); print; exit}' "$env_file" 2>/dev/null || true)"
+  raw="${raw%$'\r'}"
+  raw="${raw#\"}"; raw="${raw%\"}"
+  raw="${raw#\'}"; raw="${raw%\'}"
+  printf '%s' "$raw"
+}
+
+ensure_gateway_image_env() {
+  local env_file="$1"
+
+  local gw_token
+  gw_token="$(read_env_var "$env_file" "GATEWAY_BEARER_TOKEN")"
+  [[ -n "$gw_token" ]] || return 0
+
+  local img_base
+  img_base="$(read_env_var "$env_file" "IMAGE_GEN_OAI_BASEURL")"
+
+  # Only auto-wire if the image tool is pointed at the local gateway.
+  if [[ "$img_base" != *":8800/v1"* ]]; then
+    return 0
+  fi
+
+  set_env_var_if_missing_or_empty "$env_file" "IMAGE_GEN_OAI_MODEL" "auto"
+  set_env_var_if_missing_or_empty "$env_file" "IMAGE_GEN_OAI_API_KEY" "$gw_token"
+}
+
 ensure_env_secrets() {
   local env_file="$1"
 
@@ -152,6 +184,10 @@ ensure_env_secrets() {
   set_env_var_if_missing_or_empty "$env_file" "JWT_REFRESH_SECRET" "$(openssl rand -hex 32)"
   set_env_var_if_missing_or_empty "$env_file" "CREDS_KEY" "$(openssl rand -hex 32)"
   set_env_var_if_missing_or_empty "$env_file" "CREDS_IV" "$(openssl rand -hex 16)"
+
+  # If the operator is using the gateway for image generation too, default the
+  # image tool to the same token as the chat endpoint.
+  ensure_gateway_image_env "$env_file"
 }
 
 ensure_service_user() {

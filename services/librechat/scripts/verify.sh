@@ -36,6 +36,10 @@ pass() {
   echo "OK: $*"
 }
 
+warn() {
+  echo "WARN: $*" >&2
+}
+
 echo "Checking MongoDB listener..."
 ${SUDO} lsof -nP -iTCP:27017 -sTCP:LISTEN >/dev/null || fail "MongoDB is not listening on TCP/27017. Try: sudo services/librechat/scripts/restart.sh ; then services/librechat/scripts/status.sh"
 pass "MongoDB is listening on TCP/27017"
@@ -97,6 +101,20 @@ grep -q '"choices"' "$tmp_body" || {
 
 rm -f "$tmp_hdr" "$tmp_body" || true
 pass "Gateway chat completion returns 2xx"
+
+echo "Checking LibreChat image-gen config (optional)..."
+IMG_BASE_RAW="$(${SUDO} awk -F= '/^IMAGE_GEN_OAI_BASEURL=/{sub(/^IMAGE_GEN_OAI_BASEURL=/, ""); print; exit}' "$ENV_FILE" 2>/dev/null || true)"
+IMG_BASE="${IMG_BASE_RAW%$'\r'}"
+IMG_KEY_RAW="$(${SUDO} awk -F= '/^IMAGE_GEN_OAI_API_KEY=/{sub(/^IMAGE_GEN_OAI_API_KEY=/, ""); print; exit}' "$ENV_FILE" 2>/dev/null || true)"
+IMG_KEY="${IMG_KEY_RAW%$'\r'}"
+IMG_KEY="${IMG_KEY#\"}"; IMG_KEY="${IMG_KEY%\"}"
+IMG_KEY="${IMG_KEY#\'}"; IMG_KEY="${IMG_KEY%\'}"
+
+if [[ -n "$IMG_BASE" && "$IMG_BASE" == *":8800/v1"* && -z "$IMG_KEY" ]]; then
+  warn "IMAGE_GEN_OAI_BASEURL points at the gateway (${IMG_BASE}) but IMAGE_GEN_OAI_API_KEY is empty; image tools will fail. Run: services/librechat/scripts/install.sh to auto-fill from GATEWAY_BEARER_TOKEN, or set it manually."
+else
+  pass "Image-gen env looks OK (or not using gateway)"
+fi
 
 echo "Checking LibreChat YAML hardening (Actions/MCP disabled)..."
 ${SUDO} /bin/test -f "$YAML_FILE" || fail "Missing YAML config: $YAML_FILE"
