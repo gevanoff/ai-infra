@@ -21,12 +21,12 @@ ENV_FILE="${APP_DIR}/.env"
 PYTHON_BIN="${RUNTIME_ROOT}/env/bin/python"
 SCRIPT_PATH="${APP_DIR}/tools/freeze_release.py"
 
-if [[ ! -x "${PYTHON_BIN}" ]]; then
+if ! sudo test -x "${PYTHON_BIN}" 2>/dev/null; then
   echo "ERROR: expected python not found/executable: ${PYTHON_BIN}" >&2
   exit 1
 fi
 
-if [[ ! -f "${SCRIPT_PATH}" ]]; then
+if ! sudo test -f "${SCRIPT_PATH}" 2>/dev/null; then
   echo "ERROR: ${SCRIPT_PATH} not found" >&2
   echo "Hint: run services/gateway/scripts/deploy.sh to deploy the latest gateway tools." >&2
   exit 1
@@ -38,7 +38,7 @@ _read_env_file_kv() {
   [[ -f "${file}" ]] || return 0
   # Grab the last assignment, strip leading KEY=, strip surrounding quotes.
   local line
-  line="$(grep -E "^${key}=" "${file}" | tail -n 1 || true)"
+  line="$(sudo grep -E "^${key}=" "${file}" 2>/dev/null | tail -n 1 || true)"
   [[ -n "${line}" ]] || return 0
   line="${line#${key}=}"
   # Strip surrounding single/double quotes.
@@ -69,6 +69,19 @@ sudo chown -R gateway:staff "${RUNTIME_ROOT}/data/releases" || true
 sudo chmod -R u+rwX,g+rX,o-rwx "${RUNTIME_ROOT}/data/releases" || true
 
 echo "Freezing release manifest to ${OUT_PATH}"
+
+if [[ -f "${APP_DIR}/DEPLOYED_GATEWAY_COMMIT" ]]; then
+  echo -n "deployed_gateway_commit="
+  cat "${APP_DIR}/DEPLOYED_GATEWAY_COMMIT" || true
+fi
+if [[ -f "${APP_DIR}/DEPLOYED_GATEWAY_GIT_REF" ]]; then
+  echo -n "deployed_gateway_ref="
+  cat "${APP_DIR}/DEPLOYED_GATEWAY_GIT_REF" || true
+fi
+if [[ -f "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" ]]; then
+  echo -n "deployed_ai_infra_commit="
+  cat "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" || true
+fi
 
 sudo -u gateway -H "${PYTHON_BIN}" "${SCRIPT_PATH}" \
   --base-url "${BASE_URL}" \

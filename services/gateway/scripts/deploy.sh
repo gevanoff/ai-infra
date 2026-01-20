@@ -151,6 +151,11 @@ echo "Source:  ${SRC_DIR}"
 echo "Deploy:  ${APP_DIR}"
 echo "Label:   ${LAUNCHD_LABEL}"
 
+# Commit/ref we intend to deploy (best-effort). We capture this BEFORE rsync so
+# the stamp always corresponds to the source snapshot we copied.
+SRC_COMMIT_FOR_DEPLOY=""
+SRC_REF_FOR_DEPLOY=""
+
 if [[ -d "${SRC_DIR}/.git" ]]; then
   SRC_COMMIT="$(git -C "${SRC_DIR}" rev-parse HEAD 2>/dev/null || true)"
   if [[ -n "${SRC_COMMIT}" ]]; then
@@ -160,6 +165,7 @@ if [[ -d "${SRC_DIR}/.git" ]]; then
   if [[ "${GIT_UPDATE}" == "1" ]]; then
     require_cmd git
     REF="${GIT_REF:-origin/main}"
+    SRC_REF_FOR_DEPLOY="${REF}"
     echo "Updating gateway source repo to ${REF} (HARD RESET)..." >&2
     git -C "${SRC_DIR}" fetch --prune origin >&2
     git -C "${SRC_DIR}" checkout --detach "${REF}" >&2
@@ -170,6 +176,9 @@ if [[ -d "${SRC_DIR}/.git" ]]; then
       echo "Updated source commit: ${SRC_COMMIT}" >&2
     fi
   fi
+
+  # The commit we will stamp into the deployed tree.
+  SRC_COMMIT_FOR_DEPLOY="${SRC_COMMIT}"
 fi
 
 if ! id -u gateway >/dev/null 2>&1; then
@@ -247,19 +256,18 @@ fi
 
 # ---- stamp deployed commits (best-effort) ----
 # These files allow generating a release manifest later without requiring git.
-if command -v git >/dev/null 2>&1; then
-  if [[ -d "${SRC_DIR}/.git" ]]; then
-    GATEWAY_COMMIT="$(git -C "${SRC_DIR}" rev-parse HEAD 2>/dev/null || true)"
-    if [[ -n "${GATEWAY_COMMIT}" ]]; then
-      echo "${GATEWAY_COMMIT}" | sudo tee "${APP_DIR}/DEPLOYED_GATEWAY_COMMIT" >/dev/null || true
-    fi
-  fi
+if [[ -n "${SRC_COMMIT_FOR_DEPLOY}" ]]; then
+  echo "${SRC_COMMIT_FOR_DEPLOY}" | sudo tee "${APP_DIR}/DEPLOYED_GATEWAY_COMMIT" >/dev/null || true
+fi
 
-  if [[ -d "${AI_INFRA_ROOT}/.git" ]]; then
-    AI_INFRA_COMMIT="$(git -C "${AI_INFRA_ROOT}" rev-parse HEAD 2>/dev/null || true)"
-    if [[ -n "${AI_INFRA_COMMIT}" ]]; then
-      echo "${AI_INFRA_COMMIT}" | sudo tee "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" >/dev/null || true
-    fi
+if [[ -n "${SRC_REF_FOR_DEPLOY}" ]]; then
+  echo "${SRC_REF_FOR_DEPLOY}" | sudo tee "${APP_DIR}/DEPLOYED_GATEWAY_GIT_REF" >/dev/null || true
+fi
+
+if command -v git >/dev/null 2>&1 && [[ -d "${AI_INFRA_ROOT}/.git" ]]; then
+  AI_INFRA_COMMIT="$(git -C "${AI_INFRA_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "${AI_INFRA_COMMIT}" ]]; then
+    echo "${AI_INFRA_COMMIT}" | sudo tee "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" >/dev/null || true
   fi
 fi
 
