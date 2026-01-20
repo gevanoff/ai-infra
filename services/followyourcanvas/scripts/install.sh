@@ -37,8 +37,75 @@ APP_DIR="/var/lib/followyourcanvas/app"
 VENV_DIR="/var/lib/followyourcanvas/venv"
 RUNTIME_DIR="/var/lib/followyourcanvas"
 LOG_DIR="/var/log/followyourcanvas"
+SHIM_SRC_DIR="${HERE}/../shim/fyc_shim"
+SHIM_REQS="${HERE}/../shim/requirements.txt"
+SHIM_DST_ROOT="/var/lib/followyourcanvas/shim"
 FYC_USER="${FYC_USER:-followyourcanvas}"
 FYC_REPO_URL_DEFAULT="https://github.com/mayuelala/FollowYourCanvas.git"
+
+ensure_env_defaults() {
+  local env_path="$1"
+  local venv_dir="$2"
+
+  python3 - "$env_path" "$venv_dir" <<'PY'
+import os
+import sys
+
+env_path = sys.argv[1]
+venv_dir = sys.argv[2]
+
+defaults = {
+  "PYTHONPATH": "/var/lib/followyourcanvas/shim",
+  "FYC_CMD": f'"{venv_dir}/bin/python -m uvicorn fyc_shim.server:app --host ${{FYC_HOST}} --port ${{FYC_PORT}}"',
+  "FYC_WORKDIR": "/var/lib/followyourcanvas/app",
+  "FYC_OUT_DIR": "/var/lib/followyourcanvas/out",
+  "FYC_MAX_CONCURRENCY": "1",
+  "FYC_TIMEOUT_SEC": "3600",
+}
+
+try:
+  with open(env_path, "r", encoding="utf-8") as handle:
+    lines = handle.read().splitlines()
+except OSError:
+  lines = []
+
+existing = {}
+for line in lines:
+  stripped = line.strip()
+  if not stripped or stripped.startswith("#") or "=" not in stripped:
+    continue
+  k, v = stripped.split("=", 1)
+  existing[k] = v
+
+out_lines = []
+seen = set()
+
+def is_empty(v: str) -> bool:
+  return v is None or v.strip() == "" or v.strip() in {'""', "''"}
+
+for line in lines:
+  stripped = line.strip()
+  if not stripped or stripped.startswith("#") or "=" not in stripped:
+    out_lines.append(line)
+    continue
+
+  k, v = stripped.split("=", 1)
+  seen.add(k)
+
+  if k in defaults and is_empty(v):
+    out_lines.append(f"{k}={defaults[k]}")
+  else:
+    out_lines.append(line)
+
+for k, v in defaults.items():
+  if k not in seen:
+    out_lines.append(f"{k}={v}")
+
+content = "\n".join(out_lines).rstrip() + "\n"
+with open(env_path, "w", encoding="utf-8") as handle:
+  handle.write(content)
+PY
+}
 
 ensure_service_user() {
   local user="$1"
@@ -89,6 +156,14 @@ if [[ -f "${ENV_DST}" ]]; then
   set +a
 fi
 
+# Fill in sane defaults (including a working FYC_CMD) for existing installs.
+ensure_env_defaults "${ENV_DST}" "${VENV_DIR}"
+
+set -a
+# shellcheck disable=SC1090
+source "${ENV_DST}"
+set +a
+
 if [[ -z "${FYC_REPO_URL:-}" ]]; then
   # Default to the canonical upstream repo; allow override via env file or CLI env.
   FYC_REPO_URL="${FYC_REPO_URL_DEFAULT}"
@@ -121,6 +196,16 @@ if [[ -f "${APP_DIR}/requirements.txt" ]]; then
 else
   echo "WARNING: ${APP_DIR}/requirements.txt not found; install dependencies manually." >&2
 fi
+
+echo "Installing shim dependencies..." >&2
+sudo -u "${FYC_USER}" "${VENV_DIR}/bin/pip" install -r "${SHIM_REQS}"
+
+echo "Syncing shim sources..." >&2
+mkdir -p "${SHIM_DST_ROOT}"
+rm -rf "${SHIM_DST_ROOT}/fyc_shim"
+cp -R "${SHIM_SRC_DIR}" "${SHIM_DST_ROOT}/fyc_shim"
+chown -R "${FYC_USER}":"${FYC_USER}" "${SHIM_DST_ROOT}"
+chmod -R go-rwx "${SHIM_DST_ROOT}" || true
 
 set -a
 # shellcheck disable=SC1090

@@ -4,14 +4,16 @@ Linux systemd-managed FollowYourCanvas service for GPU-backed video generation.
 
 This service is intended to run on a dedicated GPU host (Ubuntu or similar), bind **only** to localhost
 (`127.0.0.1`), and be consumed through the gateway using the tool bus. The install scripts create a
-virtual environment, clone the FollowYourCanvas repo, and install its dependencies, but you still
-need to set the exact launch command that matches your FollowYourCanvas checkout.
+virtual environment, clone the FollowYourCanvas repo, and install its dependencies. By default the
+systemd service starts a small FastAPI shim that implements a stable `POST /v1/videos/generations`
+contract.
 
 ## What you edit
 
 - `env/followyourcanvas.env.example`
-  - Update `FYC_CMD` to the exact command used to launch the FollowYourCanvas HTTP server.
   - Adjust `FYC_HOST` / `FYC_PORT` to match your desired bind address and port.
+  - Set either `FYC_UPSTREAM_BASE_URL` (proxy an existing HTTP server) or `FYC_RUN_COMMAND`
+    (run inference via subprocess).
 - `systemd/followyourcanvas.service`
   - Verify `User`, `WorkingDirectory`, and the `EnvironmentFile` path.
 - `tools/followyourcanvas_generate.py`
@@ -62,7 +64,7 @@ If your FollowYourCanvas server uses a different endpoint, update `FYC_API_BASE_
 
 ## Notes
 
-- The install script expects you to provide the FollowYourCanvas repo URL via `FYC_REPO_URL`.
+- The install script defaults `FYC_REPO_URL` to the canonical upstream repo; override it if you use a fork.
 - If you prefer a manual install, clone the repo into `/var/lib/followyourcanvas/app`, create the
   venv in `/var/lib/followyourcanvas/venv`, and install requirements as documented upstream.
 - Keep the service bound to `127.0.0.1` and route access through the gateway (or an SSH tunnel).

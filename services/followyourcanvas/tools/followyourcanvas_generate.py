@@ -37,7 +37,13 @@ def _read_input() -> dict:
 def main() -> int:
     _load_env_file(ENV_FILE)
     payload = _read_input()
-    base_url = os.environ.get("FYC_API_BASE_URL", "http://127.0.0.1:8123").rstrip("/")
+
+    base_url = os.environ.get("FYC_API_BASE_URL")
+    if not base_url:
+        host = os.environ.get("FYC_HOST", "127.0.0.1")
+        port = os.environ.get("FYC_PORT", "8123")
+        base_url = f"http://{host}:{port}"
+    base_url = base_url.rstrip("/")
     endpoint = f"{base_url}/v1/videos/generations"
 
     data = json.dumps(payload).encode("utf-8")
@@ -48,8 +54,10 @@ def main() -> int:
         method="POST",
     )
 
+    timeout_sec = int(os.environ.get("FYC_TOOL_TIMEOUT_SEC", "3600"))
+
     try:
-        with urllib.request.urlopen(req, timeout=600) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             body = resp.read().decode("utf-8")
             print(body)
             return 0
