@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+
+ENV_FILE = "/var/lib/followyourcanvas/followyourcanvas.env"
+
+
+def _load_env_file(path: str) -> None:
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key and key not in os.environ:
+                    os.environ[key] = value.strip().strip("\"")
+    except OSError:
+        return
+
+
+def _read_input() -> dict:
+    if sys.stdin.isatty():
+        return {}
+    raw = sys.stdin.read().strip()
+    if not raw:
+        return {}
+    return json.loads(raw)
+
+
+def main() -> int:
+    _load_env_file(ENV_FILE)
+    payload = _read_input()
+    base_url = os.environ.get("FYC_API_BASE_URL", "http://127.0.0.1:8123").rstrip("/")
+    endpoint = f"{base_url}/v1/videos/generations"
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        endpoint,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            body = resp.read().decode("utf-8")
+            print(body)
+            return 0
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read().decode("utf-8") if exc.fp else ""
+        print(
+            json.dumps(
+                {
+                    "error": "followyourcanvas request failed",
+                    "status": exc.code,
+                    "detail": err_body,
+                }
+            )
+        )
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        print(json.dumps({"error": "followyourcanvas request failed", "detail": str(exc)}))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
