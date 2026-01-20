@@ -40,6 +40,7 @@ LOG_DIR="/var/log/followyourcanvas"
 SHIM_SRC_DIR="${HERE}/../shim/fyc_shim"
 SHIM_REQS="${HERE}/../shim/requirements.txt"
 SHIM_DST_ROOT="/var/lib/followyourcanvas/shim"
+SHIM_DST_REQS="${SHIM_DST_ROOT}/requirements.txt"
 FYC_USER="${FYC_USER:-followyourcanvas}"
 FYC_REPO_URL_DEFAULT="https://github.com/mayuelala/FollowYourCanvas.git"
 
@@ -197,15 +198,17 @@ else
   echo "WARNING: ${APP_DIR}/requirements.txt not found; install dependencies manually." >&2
 fi
 
-echo "Installing shim dependencies..." >&2
-sudo -u "${FYC_USER}" "${VENV_DIR}/bin/pip" install -r "${SHIM_REQS}"
-
 echo "Syncing shim sources..." >&2
 mkdir -p "${SHIM_DST_ROOT}"
+cp "${SHIM_REQS}" "${SHIM_DST_REQS}"
 rm -rf "${SHIM_DST_ROOT}/fyc_shim"
 cp -R "${SHIM_SRC_DIR}" "${SHIM_DST_ROOT}/fyc_shim"
 chown -R "${FYC_USER}":"${FYC_USER}" "${SHIM_DST_ROOT}"
+chmod 640 "${SHIM_DST_REQS}" || true
 chmod -R go-rwx "${SHIM_DST_ROOT}" || true
+
+echo "Installing shim dependencies..." >&2
+sudo -u "${FYC_USER}" "${VENV_DIR}/bin/pip" install -r "${SHIM_DST_REQS}"
 
 set -a
 # shellcheck disable=SC1090
