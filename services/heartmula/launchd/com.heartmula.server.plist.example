@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.heartmula.server</string>
+
+    <key>UserName</key>
+    <string>heartmula</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/var/lib/heartmula/env/bin/heartmula</string>
+      <string>serve</string>
+      <string>--host</string>
+      <string>127.0.0.1</string>
+      <string>--port</string>
+      <string>9920</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HEARTMULA_MODEL_DIR</key>
+      <string>/var/lib/heartmula/models</string>
+      <key>HEARTMULA_CACHE_DIR</key>
+      <string>/var/lib/heartmula/cache</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>/var/lib/heartmula</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/heartmula/heartmula.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/heartmula/heartmula.err.log</string>
+  </dict>
+</plist>

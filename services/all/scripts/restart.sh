@@ -370,5 +370,6 @@ fi
 # Fallback: try known roles.
 run_restart "ollama"
 run_restart "mlx"
+run_restart "heartmula"
 run_restart "gateway"
 echo "Done." >&2

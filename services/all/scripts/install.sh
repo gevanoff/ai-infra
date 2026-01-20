@@ -406,5 +406,6 @@ fi
 # Fallback: try known roles.
 run_install "ollama"
 run_install "mlx"
+run_install "heartmula"
 run_install "gateway"
 echo "Done." >&2

@@ -437,6 +437,15 @@ check_librechat() {
   check_simple_get_200 "health" "http://${hostname}:${port}${healthz}"
 }
 
+check_heartmula() {
+  local hostname="$1"
+  local port="$2"
+  local healthz="$3"
+
+  echo "  heartmula:"
+  check_simple_get_200 "health" "http://${hostname}:${port}${healthz}"
+}
+
 # Determine hosts to verify
 if [[ -n "$FILTER_HOST" ]]; then
   HOSTS="$FILTER_HOST"
@@ -501,6 +510,11 @@ for host in $HOSTS; do
         ;;
       librechat)
         if ! check_librechat "$hostname" "$port" "$healthz"; then
+          host_failed=true
+        fi
+        ;;
+      heartmula)
+        if ! check_heartmula "$hostname" "$port" "$healthz"; then
           host_failed=true
         fi
         ;;
