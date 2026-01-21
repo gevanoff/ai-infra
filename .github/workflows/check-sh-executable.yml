@@ -1,0 +1,23 @@
+name: Check shell script executable bit
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  check-exec-bit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find non-executable .sh files
+        run: |
+          set -euo pipefail
+          missing=$(git ls-files '*.sh' | while read -r f; do mode=$(git ls-files -s "$f" | awk '{print $1}'); if [ "$mode" != "100755" ]; then echo "$f"; fi; done)
+          if [ -n "$missing" ]; then
+            echo "The following tracked .sh files are not executable:\n$missing"
+            exit 1
+          fi
+          echo "All tracked .sh files are executable."
