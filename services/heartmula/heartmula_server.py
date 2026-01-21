@@ -118,9 +118,10 @@ async def startup_event():
             device=device,
             dtype=dtype,
             version=version,
-        )        # store detected device/dtype for logging in handlers
+        )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
-        pipeline_dtype = str(dtype)        print("HeartMula pipeline initialized successfully")
+        pipeline_dtype = str(dtype)
+        print("HeartMula pipeline initialized successfully")
     except Exception as e:
         print(f"Failed to initialize HeartMula pipeline: {e}")
         raise
