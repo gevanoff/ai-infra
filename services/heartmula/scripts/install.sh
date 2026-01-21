@@ -26,13 +26,13 @@ fi
 
 require_cmd launchctl
 require_cmd plutil
-require_cmd python3
+require_cmd python3.10
 
 echo "HeartMula: verified macOS and required commands" >&2
 
 # Verify Python version early to avoid building heavy native deps like numpy
 if [[ "${SKIP_PYTHON_VERSION_CHECK:-}" != "true" ]]; then
-  PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  PY_VER="$(python3.10 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
   if [[ "${PY_VER}" != "3.10" && "${PY_VER}" != "3.11" && "${PY_VER}" != "3.12" ]]; then
     echo "ERROR: Unsupported Python version: ${PY_VER}" >&2
     echo "HeartMuLa recommends Python 3.10/3.11 (some builds work on 3.12)." >&2
@@ -157,8 +157,8 @@ if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]] || [[ ! -f "${HEARTMULA_HOME}/heartmula_
 
   if [[ -z "${PY_BIN}" ]]; then
     echo "ERROR: no suitable Python (3.10/3.11/3.12) found. Set HEARTMULA_PYTHON to a suitable interpreter." >&2
-    echo "Detected 'python3' version:" >&2
-    command -v python3 >/dev/null 2>&1 && python3 -V 2>&1 | sed 's/^/  /' >&2 || true
+    echo "Detected 'python3.10' version:" >&2
+    command -v python3.10 >/dev/null 2>&1 && python3.10 -V 2>&1 | sed 's/^/  /' >&2 || true
     echo "Install e.g. 'brew install python@3.10' and re-run (or set HEARTMULA_PYTHON=/path/to/python3.10)" >&2
     exit 1
   fi
