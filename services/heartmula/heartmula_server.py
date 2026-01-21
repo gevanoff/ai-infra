@@ -23,6 +23,14 @@ if os.environ.get("HEARTMULA_DEVICE", "").strip().lower() == "cpu":
     except Exception:
         pass
 
+# Optional triton check (triton is an optional acceleration library; absence on macOS is expected)
+try:
+    import triton  # type: ignore
+    _triton_available = True
+except Exception:
+    _triton_available = False
+    print("Optional dependency 'triton' not found. This is expected on macOS or CPU-only systems. HeartMuLa may still work but with reduced performance. To use triton, install it on a supported Linux/CUDA environment.")
+
 # Import HeartMula after environment setup
 try:
     from heartlib import HeartMuLaGenPipeline
