@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
+import torch
 
 # Import HeartMula after environment setup
 try:
@@ -57,12 +58,19 @@ async def startup_event():
     global pipeline
     try:
         model_path = get_model_path()
-        print(f"Loading HeartMula model from: {model_path}")
+        version = os.environ.get("HEARTMULA_VERSION", "3B")
+        dtype_env = os.environ.get("HEARTMULA_DTYPE", "float32")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        dtype = torch.float16 if dtype_env in ("float16", "fp16") else torch.float32
 
-        # Initialize pipeline with 3B model (smaller, more compatible)
-        pipeline = HeartMuLaGenPipeline(
-            model_path=model_path,
-            version="3B"
+        print(f"Loading HeartMuLa model from: {model_path} (version={version}, device={device}, dtype={dtype})")
+
+        # Use from_pretrained classmethod to load checkpoints from a directory
+        pipeline = HeartMuLaGenPipeline.from_pretrained(
+            model_path,
+            device=device,
+            dtype=dtype,
+            version=version,
         )
         print("HeartMula pipeline initialized successfully")
     except Exception as e:
@@ -94,26 +102,24 @@ async def generate_music(request: MusicGenerationRequest):
 
         print(f"Generating music: {lyrics[:50]}... (duration: {request.duration}s)")
 
-        # Generate music
-        audio_array = pipeline.generate(
-            lyrics=lyrics,
-            tags=tags,
+        # Generate music using pipeline internals (preprocess -> forward -> postprocess)
+        pre_kwargs, forward_kwargs, post_kwargs = pipeline._sanitize_parameters(
+            cfg_scale=1.5,
             max_audio_length_ms=max_audio_length_ms,
             temperature=request.temperature,
             topk=request.top_k,
-            topp=request.top_p,
-            cfg_scale=1.5  # Default classifier-free guidance
+            save_path=str(output_path.with_suffix('.wav')),
         )
 
-        # Save audio file
-        # Note: HeartMula returns audio array, need to save it properly
-        # This is a simplified version - you may need to adjust based on HeartMula's output format
-        import soundfile as sf
-        import numpy as np
+        model_inputs = pipeline.preprocess({"tags": tags, "lyrics": lyrics}, **pre_kwargs)
+        model_outputs = pipeline._forward(model_inputs, **forward_kwargs)
+        # Postprocess will write the file at save_path
+        pipeline.postprocess(model_outputs, save_path=str(output_path.with_suffix('.wav')))
 
-        # Convert to wav first, then could convert to mp3 if needed
+        # Confirm file exists
         wav_path = output_path.with_suffix('.wav')
-        sf.write(wav_path, audio_array, 44100)  # Assuming 44.1kHz sample rate
+        if not wav_path.exists():
+            raise RuntimeError("Generation did not produce output file")
 
         # For now, return the WAV file
         # You could add MP3 conversion here if desired
