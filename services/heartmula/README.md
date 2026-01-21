@@ -1,6 +1,6 @@
 # heartmula (music generator)
 
-macOS launchd-managed HeartMula music generation service.
+HeartMula music generation service.
 
 This service is intended to run **only on localhost** (bind `127.0.0.1`) and be consumed by the gateway via an HTTP base URL.
 
@@ -48,29 +48,6 @@ Notes & troubleshooting
 - CUDA & drivers: The installer will detect `nvidia-smi`. If `nvidia-smi` is absent, the script will still install a CPU PyTorch wheel as a fallback but HeartMula performance will be severely limited. Install the correct NVIDIA drivers + CUDA toolkit for ada2 before running the installer for best results.
 - Triton: The installer will try to `pip install triton` (best-effort). Triton support is optional and may require additional configuration; if Triton install fails, check the pip error and consider installing a matching Triton wheel for your CUDA version.
 
-### Uninstalling from macOS (ai2)
-
-If you need to remove HeartMula from the macOS host (ai2), we provide an idempotent uninstall script `uninstall_ai2.sh` that attempts to do the following safely:
-
-- Unload and remove the launchd plist (`/Library/LaunchDaemons/com.heartmula.server.plist`)
-- Remove runtime directory (`/var/lib/heartmula`) and logs (`/var/log/heartmula`)
-- Remove the `heartmula` system user (if present)
-
-Run it as root (interactive):
-
-```bash
-cd /path/to/ai-infra/services/heartmula/scripts
-sudo ./uninstall_ai2.sh
-```
-
-Or run non-interactively:
-
-```bash
-sudo ./uninstall_ai2.sh --yes
-```
-
-**Note:** This deletes runtime files under `/var/lib/heartmula` and `/var/log/heartmula`. If you want to preserve model checkpoints, back up `/var/lib/heartmula/ckpt` before running the uninstall script.
-
 ## Gateway integration
 
 Point the gateway at the HeartMula HTTP endpoint (example values shown):
@@ -88,21 +65,13 @@ Use the same host/port you configured in the systemd unit or env file. The gatew
 
 Firewall: the ada2 installer can configure iptables to only allow access to the HeartMula port from trusted CIDRs. By default the installer uses `HEARTMULA_ALLOWED_CIDRS=10.10.22.0/24` to permit the gateway network; change this in `/etc/heartmula/heartmula.env` if needed.
 
-## Notes
-
-- The plist runs HeartMula under a dedicated `heartmula` user by default. Create it first (or set `HEARTMULA_USER` and edit the plist `UserName`).
-- launchd does not read `.env` files automatically; encode required env vars under `EnvironmentVariables` in the plist.
-
 Environment variables you may want to set:
 
 - `HEARTMULA_MODEL_PATH` — path to model checkpoints (default: `/var/lib/heartmula/ckpt`).
 - `HEARTMULA_OUTPUT_DIR` — where generated audio is written (default: `/var/lib/heartmula/output`).
 - `HEARTMULA_VERSION` — model version to load (default: `3B`).
 - `HEARTMULA_DTYPE` — `float32` or `float16` (use `float16` only with CUDA devices).
-- `HEARTMULA_DEVICE` — preferred device (`cpu`, `cuda`, or `mps`). **Default is CUDA if available, otherwise CPU.** Use `HEARTMULA_DEVICE=cpu` to force CPU.
-- `HEARTMULA_FORCE_MPS` — set to `1` to force MPS even though it may lack full autocast support (use at your own risk).
-
-Notes about MPS: By default the server avoids using MPS autocast due to limited support; if you must run on Apple Silicon and understand the limitations, set `HEARTMULA_DEVICE=mps` and `HEARTMULA_FORCE_MPS=1` in the plist.
+- `HEARTMULA_DEVICE` — preferred device (`cpu` or `cuda`). **Default is CUDA if available, otherwise CPU.** Use `HEARTMULA_DEVICE=cpu` to force CPU.
 
 ## Recommended HeartMula command
 
