@@ -50,6 +50,8 @@ class MusicGenerationResponse(BaseModel):
 
 # Global pipeline instance
 pipeline: Optional[HeartMuLaGenPipeline] = None
+pipeline_device: Optional[str] = None
+pipeline_dtype: Optional[str] = None
 
 def get_model_path() -> str:
     """Get the model path from environment or default"""
@@ -116,8 +118,9 @@ async def startup_event():
             device=device,
             dtype=dtype,
             version=version,
-        )
-        print("HeartMula pipeline initialized successfully")
+        )        # store detected device/dtype for logging in handlers
+        pipeline_device = str(device)
+        pipeline_dtype = str(dtype)        print("HeartMula pipeline initialized successfully")
     except Exception as e:
         print(f"Failed to initialize HeartMula pipeline: {e}")
         raise
@@ -146,6 +149,7 @@ async def generate_music(request: MusicGenerationRequest):
         output_path = output_dir / f"{generation_id}.mp3"
 
         print(f"Generating music: {lyrics[:50]}... (duration: {request.duration}s)")
+        print(f"Pipeline device={pipeline_device}, dtype={pipeline_dtype}")
 
         # Generate music using pipeline internals (preprocess -> forward -> postprocess)
         pre_kwargs, forward_kwargs, post_kwargs = pipeline._sanitize_parameters(

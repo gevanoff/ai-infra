@@ -62,6 +62,17 @@ Use the same host/port you configured in the launchd plist. The gateway host sho
 - The plist runs HeartMula under a dedicated `heartmula` user by default. Create it first (or set `HEARTMULA_USER` and edit the plist `UserName`).
 - launchd does not read `.env` files automatically; encode required env vars under `EnvironmentVariables` in the plist.
 
+Environment variables you may want to set:
+
+- `HEARTMULA_MODEL_PATH` — path to model checkpoints (default: `/var/lib/heartmula/ckpt`).
+- `HEARTMULA_OUTPUT_DIR` — where generated audio is written (default: `/var/lib/heartmula/output`).
+- `HEARTMULA_VERSION` — model version to load (default: `3B`).
+- `HEARTMULA_DTYPE` — `float32` or `float16` (use `float16` only with CUDA devices).
+- `HEARTMULA_DEVICE` — preferred device (`cpu`, `cuda`, or `mps`). **Default is CUDA if available, otherwise CPU.** Use `HEARTMULA_DEVICE=cpu` to force CPU.
+- `HEARTMULA_FORCE_MPS` — set to `1` to force MPS even though it may lack full autocast support (use at your own risk).
+
+Notes about MPS: By default the server avoids using MPS autocast due to limited support; if you must run on Apple Silicon and understand the limitations, set `HEARTMULA_DEVICE=mps` and `HEARTMULA_FORCE_MPS=1` in the plist.
+
 ## Recommended HeartMula command
 
 The service runs the FastAPI server automatically:
