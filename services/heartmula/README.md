@@ -48,6 +48,29 @@ Notes & troubleshooting
 - CUDA & drivers: The installer will detect `nvidia-smi`. If `nvidia-smi` is absent, the script will still install a CPU PyTorch wheel as a fallback but HeartMula performance will be severely limited. Install the correct NVIDIA drivers + CUDA toolkit for ada2 before running the installer for best results.
 - Triton: The installer will try to `pip install triton` (best-effort). Triton support is optional and may require additional configuration; if Triton install fails, check the pip error and consider installing a matching Triton wheel for your CUDA version.
 
+### Uninstalling from macOS (ai2)
+
+If you need to remove HeartMula from the macOS host (ai2), we provide an idempotent uninstall script `uninstall_ai2.sh` that attempts to do the following safely:
+
+- Unload and remove the launchd plist (`/Library/LaunchDaemons/com.heartmula.server.plist`)
+- Remove runtime directory (`/var/lib/heartmula`) and logs (`/var/log/heartmula`)
+- Remove the `heartmula` system user (if present)
+
+Run it as root (interactive):
+
+```bash
+cd /path/to/ai-infra/services/heartmula/scripts
+sudo ./uninstall_ai2.sh
+```
+
+Or run non-interactively:
+
+```bash
+sudo ./uninstall_ai2.sh --yes
+```
+
+**Note:** This deletes runtime files under `/var/lib/heartmula` and `/var/log/heartmula`. If you want to preserve model checkpoints, back up `/var/lib/heartmula/ckpt` before running the uninstall script.
+
 ## Gateway integration
 
 Point the gateway at the HeartMula HTTP endpoint (example values shown):
