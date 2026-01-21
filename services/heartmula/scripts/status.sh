@@ -8,12 +8,7 @@ require_cmd() {
   }
 }
 
-if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
-  echo "ERROR: heartmula launchd scripts are macOS-only." >&2
-  exit 1
-fi
+require_cmd systemctl
 
-require_cmd launchctl
-
-LABEL="com.heartmula.server"
-sudo launchctl print system/"$LABEL" | sed -n '1,220p'
+SERVICE="com.heartmula.server.service"
+sudo systemctl --no-pager status "$SERVICE" | sed -n '1,220p'

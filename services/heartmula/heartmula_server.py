@@ -14,22 +14,13 @@ from pydantic import BaseModel
 import uvicorn
 import torch
 
-# If HEARTMULA_DEVICE=cpu is set, disable MPS detection to avoid inadvertent MPS device selection
-if os.environ.get("HEARTMULA_DEVICE", "").strip().lower() == "cpu":
-    try:
-        if hasattr(torch.backends, "mps"):
-            torch.backends.mps.is_available = lambda: False
-            print("HeartMula: HEARTMULA_DEVICE=cpu set; disabling MPS detection")
-    except Exception:
-        pass
-
-# Optional triton check (triton is an optional acceleration library; absence on macOS is expected)
+# Optional triton check (triton is an optional acceleration library; absence is expected on CPU-only systems)
 try:
     import triton  # type: ignore
     _triton_available = True
 except Exception:
     _triton_available = False
-    print("Optional dependency 'triton' not found. This is expected on macOS or CPU-only systems. HeartMuLa may still work but with reduced performance. To use triton, install it on a supported Linux/CUDA environment.")
+    print("Optional dependency 'triton' not found. This is expected on CPU-only systems. HeartMuLa may still work but with reduced performance. To use triton, install it on a supported Linux/CUDA environment.")
 
 # Import HeartMula after environment setup
 try:
@@ -92,24 +83,12 @@ async def startup_event():
                 else:
                     print("WARN: HEARTMULA_DEVICE=cuda requested but no CUDA available; falling back to CPU")
                     device = torch.device("cpu")
-            elif dev_override == "mps":
-                # MPS autocast support is currently limited; allow forcing but warn
-                if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-                    if os.environ.get("HEARTMULA_FORCE_MPS", "0") == "1":
-                        device = torch.device("mps")
-                    else:
-                        print("WARN: MPS available but autocast support may be limited. Defaulting to CPU to avoid errors. Set HEARTMULA_FORCE_MPS=1 to force MPS at your own risk.")
-                        device = torch.device("cpu")
-                else:
-                    print("WARN: HEARTMULA_DEVICE=mps requested but MPS not available; falling back to CPU")
-                    device = torch.device("cpu")
             else:
                 print(f"WARN: unknown HEARTMULA_DEVICE='{dev_override}'; falling back to auto-detect")
         if device is None:
             if torch.cuda.is_available():
                 device = torch.device("cuda")
             else:
-                # Prefer CPU over MPS by default due to autocast limitations on MPS
                 device = torch.device("cpu")
 
         # dtype: use fp16 only on CUDA devices when requested

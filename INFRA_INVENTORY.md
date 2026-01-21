@@ -21,7 +21,7 @@ This document is a factual inventory of infrastructure components described by t
 - `ai-infra/services/ollama/launchd/com.ollama.service.plist.example`
 - `ai-infra/services/mlx/launchd/com.mlx.openai.server.plist.example`
 - `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
-- `ai-infra/services/heartmula/launchd/com.heartmula.server.plist.example`
+- `ai-infra/services/heartmula/systemd/com.heartmula.server.service.example`
 - `ai-infra/services/gateway/env/gateway.env.example`
 - `ai-infra/services/gateway/env/model_aliases.json.example`
 - `ai-infra/services/gateway/env/tools_registry.json.example`
@@ -70,12 +70,12 @@ Services are described as macOS `launchd` jobs in `ai-infra/services/*/launchd/*
   - Stdout/stderr logs: `/var/log/nexa/nexa.out.log`, `/var/log/nexa/nexa.err.log`
   - Source: `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
 
-- HeartMula music generator (launchd job; optional)
-  - Label: `com.heartmula.server`
-  - ProgramArguments run: `/var/lib/heartmula/env/bin/heartmula serve --host 127.0.0.1 --port 9920` (example)
-  - Listener: `127.0.0.1:9920` (example in plist)
-  - Stdout/stderr logs: `/var/log/heartmula/heartmula.out.log`, `/var/log/heartmula/heartmula.err.log`
-  - Source: `ai-infra/services/heartmula/launchd/com.heartmula.server.plist.example`
+- HeartMula music generator (systemd service; optional)
+  - Unit: `com.heartmula.server.service`
+  - ExecStart: `/var/lib/heartmula/env/bin/python /var/lib/heartmula/heartmula_server.py`
+  - Listener: `127.0.0.1:9920` (default in env)
+  - Logs: `journalctl -u com.heartmula.server.service`
+  - Source: `ai-infra/services/heartmula/systemd/com.heartmula.server.service.example`
 
 Upstream connections configured for gateway:
 
