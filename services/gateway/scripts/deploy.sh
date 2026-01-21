@@ -292,9 +292,9 @@ if [[ -f "${SRC_DIR}/tools/verify_gateway.py" ]]; then
   sudo ln -sf "${APP_DIR}/tools/verify_gateway.py" "${TOOLS_DIR}/verify_gateway.py" || true
 fi
 
-if [[ -f "${SRC_DIR}/tools/heartmula_generate.py" ]]; then
+if [[ -f "${AI_INFRA_ROOT}/services/heartmula/tools/heartmula_generate.py" ]]; then
   # Explicitly copy (some operators customize rsync excludes; this guarantees the file lands).
-  sudo cp "${SRC_DIR}/tools/heartmula_generate.py" "${APP_DIR}/tools/heartmula_generate.py" || true
+  sudo cp "${AI_INFRA_ROOT}/services/heartmula/tools/heartmula_generate.py" "${APP_DIR}/tools/heartmula_generate.py" || true
   sudo chmod 755 "${APP_DIR}/tools/heartmula_generate.py" || true
 
   # Convenience: stable path under /var/lib/gateway/tools as well.
