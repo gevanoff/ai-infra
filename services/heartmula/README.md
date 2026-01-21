@@ -55,6 +55,8 @@ Point the gateway at the HeartMula HTTP endpoint (example values shown):
 HEARTMULA_BASE_URL=http://127.0.0.1:9920
 ```
 
+> **Timeouts:** Generating audio can take longer than a typical HTTP request timeout. The gateway uses `HEARTMULA_TIMEOUT_SEC` (default 120s). If you expect longer runs, increase the gateway timeout (for example `HEARTMULA_TIMEOUT_SEC=600`) or set a duration-aware timeout in your gateway/backends config. The gateway includes a heuristic to extend the timeout based on the `duration` field in requests, but very long generations may still require a higher global timeout.
+
 Use the same host/port you configured in the launchd plist. The gateway host should be able to reach this URL (either localhost or a LAN address if you move HeartMula to a different machine).
 
 ## Notes
