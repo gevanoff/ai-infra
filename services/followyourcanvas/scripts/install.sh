@@ -44,6 +44,25 @@ SHIM_DST_REQS="${SHIM_DST_ROOT}/requirements.txt"
 FYC_USER="${FYC_USER:-followyourcanvas}"
 FYC_REPO_URL_DEFAULT="https://github.com/mayuelala/FollowYourCanvas.git"
 
+ensure_python_deps() {
+  local venv_dir="$1"
+  local -a pkgs=("${@:2}")
+
+  if [[ ${#pkgs[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  # Best-effort: install packages if they are missing. Avoid failing the whole
+  # install if pip isn't usable yet.
+  for pkg in "${pkgs[@]}"; do
+    if sudo -u "${FYC_USER}" "${venv_dir}/bin/python" -c "import ${pkg}" >/dev/null 2>&1; then
+      continue
+    fi
+    echo "Installing missing Python dependency: ${pkg}..." >&2
+    sudo -u "${FYC_USER}" "${venv_dir}/bin/pip" install "${pkg}" || true
+  done
+}
+
 ensure_env_defaults() {
   local env_path="$1"
   local venv_dir="$2"
@@ -198,6 +217,11 @@ if [[ -f "${APP_DIR}/requirements.txt" ]]; then
 else
   echo "WARNING: ${APP_DIR}/requirements.txt not found; install dependencies manually." >&2
 fi
+
+# Upstream inference scripts sometimes import modules that may be missing even
+# after installing requirements.txt (e.g. when upstream requirements drift).
+# Ensure a small set of known runtime deps exist.
+ensure_python_deps "${VENV_DIR}" einops
 
 echo "Syncing shim sources..." >&2
 mkdir -p "${SHIM_DST_ROOT}"
