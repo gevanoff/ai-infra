@@ -103,12 +103,14 @@ ensure_service_user() {
   sudo mkdir -p "${home}"
 
   sudo dscl . -create "/Users/${user}"
-  sudo dscl . -create "/Users/${user}" UserShell /usr/bin/false
+  sudo dscl . -create "/Users/${user}" UserShell /bin/bash
   sudo dscl . -create "/Users/${user}" RealName "heartmula service user"
   sudo dscl . -create "/Users/${user}" UniqueID "${uid}"
   sudo dscl . -create "/Users/${user}" PrimaryGroupID "${gid}"
   sudo dscl . -create "/Users/${user}" NFSHomeDirectory "${home}"
   sudo dscl . -create "/Users/${user}" Password '*'
+  # Hide service account from macOS login UI
+  sudo dscl . -create "/Users/${user}" IsHidden 1 || true
 
   sudo dscl . -append "/Groups/${group}" GroupMembership "${user}" >/dev/null 2>&1 || true
 }
