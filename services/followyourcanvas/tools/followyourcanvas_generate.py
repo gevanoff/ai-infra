@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from typing import Optional
 import urllib.error
 import urllib.request
 
@@ -10,7 +11,7 @@ DEFAULT_FYC_ENV_FILE = "/var/lib/followyourcanvas/followyourcanvas.env"
 DEFAULT_GATEWAY_ENV_FILE = "/var/lib/gateway/app/.env"
 
 
-def _load_env_file(path: str, *, prefix: str | None = None) -> None:
+def _load_env_file(path: str, *, prefix: Optional[str] = None) -> None:
     if not os.path.exists(path):
         return
     try:
