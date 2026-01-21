@@ -94,5 +94,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())</content>
-<parameter name="filePath">c:\Users\paper\Code\ai-infra\services\gateway\tools\heartmula_generate.py
+    sys.exit(main())
