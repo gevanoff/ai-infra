@@ -58,6 +58,7 @@ venv_dir = sys.argv[2]
 defaults = {
   "PYTHONPATH": "/var/lib/followyourcanvas/shim",
   "FYC_CMD": f'"{venv_dir}/bin/python -m uvicorn fyc_shim.server:app --host ${{FYC_HOST}} --port ${{FYC_PORT}}"',
+  "FYC_RUN_COMMAND": f'"{venv_dir}/bin/python -m fyc_shim.run"',
   "FYC_WORKDIR": "/var/lib/followyourcanvas/app",
   "FYC_OUT_DIR": "/var/lib/followyourcanvas/out",
   "FYC_MAX_CONCURRENCY": "1",

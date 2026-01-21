@@ -14,6 +14,8 @@ contract.
   - Adjust `FYC_HOST` / `FYC_PORT` to match your desired bind address and port.
   - Set either `FYC_UPSTREAM_BASE_URL` (proxy an existing HTTP server) or `FYC_RUN_COMMAND`
     (run inference via subprocess).
+  - For subprocess mode, set `FYC_DEFAULT_CONFIG` to a config file under the repo (relative to
+    `FYC_WORKDIR`) unless your client always provides `config` in the request payload.
 - `systemd/followyourcanvas.service`
   - Verify `User`, `WorkingDirectory`, and the `EnvironmentFile` path.
 - `tools/followyourcanvas_generate.py`
