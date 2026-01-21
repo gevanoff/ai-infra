@@ -1,0 +1,17 @@
+[Unit]
+Description=HeartMula Music Generation Service (example)
+After=network.target
+
+[Service]
+Type=simple
+User=heartmula
+Group=heartmula
+EnvironmentFile=/etc/heartmula/heartmula.env
+WorkingDirectory=/var/lib/heartmula
+ExecStart=/var/lib/heartmula/env/bin/python /var/lib/heartmula/heartmula_server.py
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
