@@ -25,8 +25,8 @@ HEARTMULA_USER="${HEARTMULA_USER:-heartmula}"
 HEARTMULA_GROUP="${HEARTMULA_GROUP:-staff}"
 HEARTMULA_HOME="${HEARTMULA_HOME:-/var/lib/heartmula}"
 HEARTMULA_VENV="${HEARTMULA_VENV:-${HEARTMULA_HOME}/env}"
-HEARTMULA_PIP_PACKAGES="${HEARTMULA_PIP_PACKAGES:-heartmula}"
-HEARTMULA_ENTRYPOINT="${HEARTMULA_ENTRYPOINT:-${HEARTMULA_VENV}/bin/heartmula}"
+HEARTMULA_PIP_PACKAGES="${HEARTMULA_PIP_PACKAGES:-git+https://github.com/HeartMuLa/heartlib.git soundfile numpy}"
+HEARTMULA_ENTRYPOINT="${HEARTMULA_ENTRYPOINT:-${HEARTMULA_VENV}/bin/python}"
 
 ensure_service_user() {
   local user="$1"
@@ -133,14 +133,20 @@ if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]]; then
   echo "HeartMula: installing packages: ${HEARTMULA_PIP_PACKAGES}" >&2
   # shellcheck disable=SC2086
   sudo "${HEARTMULA_VENV}/bin/python" -m pip install --upgrade ${HEARTMULA_PIP_PACKAGES}
+
+  # Copy the HeartMula server script
+  echo "HeartMula: copying server script..." >&2
+  sudo cp "${HERE}/../heartmula_server.py" "${HEARTMULA_HOME}/"
+  sudo chown "${HEARTMULA_USER}":"${HEARTMULA_GROUP}" "${HEARTMULA_HOME}/heartmula_server.py"
+  sudo chmod 755 "${HEARTMULA_HOME}/heartmula_server.py"
 fi
 
 sudo chown root:wheel "${HEARTMULA_ENTRYPOINT}" 2>/dev/null || true
 sudo chmod 755 "${HEARTMULA_ENTRYPOINT}" 2>/dev/null || true
 sudo chmod -R go-w "${HEARTMULA_VENV}" 2>/dev/null || true
 
-if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]]; then
-  echo "ERROR: heartmula entrypoint not found at ${HEARTMULA_ENTRYPOINT}" >&2
+if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]] || [[ ! -f "${HEARTMULA_HOME}/heartmula_server.py" ]]; then
+  echo "ERROR: heartmula entrypoint not found at ${HEARTMULA_ENTRYPOINT} or server script missing" >&2
   echo "Hint: set HEARTMULA_PIP_PACKAGES or HEARTMULA_ENTRYPOINT to match your installation." >&2
   exit 1
 fi

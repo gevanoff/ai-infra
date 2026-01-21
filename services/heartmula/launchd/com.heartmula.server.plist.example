@@ -10,20 +10,20 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/var/lib/heartmula/env/bin/heartmula</string>
-      <string>serve</string>
-      <string>--host</string>
-      <string>127.0.0.1</string>
-      <string>--port</string>
-      <string>9920</string>
+      <string>/var/lib/heartmula/env/bin/python</string>
+      <string>/var/lib/heartmula/heartmula_server.py</string>
     </array>
 
     <key>EnvironmentVariables</key>
     <dict>
-      <key>HEARTMULA_MODEL_DIR</key>
-      <string>/var/lib/heartmula/models</string>
-      <key>HEARTMULA_CACHE_DIR</key>
-      <string>/var/lib/heartmula/cache</string>
+      <key>HEARTMULA_MODEL_PATH</key>
+      <string>/var/lib/heartmula/ckpt</string>
+      <key>HEARTMULA_OUTPUT_DIR</key>
+      <string>/var/lib/heartmula/output</string>
+      <key>HEARTMULA_HOST</key>
+      <string>127.0.0.1</string>
+      <key>HEARTMULA_PORT</key>
+      <string>9920</string>
     </dict>
 
     <key>WorkingDirectory</key>

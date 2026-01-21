@@ -18,14 +18,34 @@ This service is intended to run **only on localhost** (bind `127.0.0.1`) and be 
   - `/var/log/heartmula/heartmula.out.log`
   - `/var/log/heartmula/heartmula.err.log`
 
-## Install / manage
+## Installation
 
-From `services/heartmula/scripts/` on the Mac host:
+1. **Install HeartMula library** (run as root or with sudo):
+   ```bash
+   cd /var/lib/heartmula
+   git clone https://github.com/HeartMuLa/heartlib.git
+   cd heartlib
+   /var/lib/heartmula/env/bin/pip install -e .
+   ```
 
-- Install + start: `./install.sh`
-- Restart: `./restart.sh`
-- Status: `./status.sh`
-- Uninstall: `./uninstall.sh`
+2. **Download models** (run as heartmula user):
+   ```bash
+   sudo -u heartmula -i
+   cd /var/lib/heartmula
+   mkdir -p ckpt output
+   
+   # Using HuggingFace
+   pip install huggingface_hub
+   hf download --local-dir './ckpt' 'HeartMuLa/HeartMuLaGen'
+   hf download --local-dir './ckpt/HeartMuLa-oss-3B' 'HeartMuLa/HeartMuLa-oss-3B'
+   hf download --local-dir './ckpt/HeartCodec-oss' 'HeartMuLa/HeartCodec-oss'
+   ```
+
+3. **Install and start service**:
+   ```bash
+   cd /path/to/ai-infra/services/heartmula/scripts
+   ./install.sh
+   ```
 
 ## Gateway integration
 
@@ -44,6 +64,6 @@ Use the same host/port you configured in the launchd plist. The gateway host sho
 
 ## Recommended HeartMula command
 
-This is the known-working pattern used by the example plist:
+The service runs the FastAPI server automatically:
 
-- `heartmula serve --host 127.0.0.1 --port 9920`
+- `python /var/lib/heartmula/heartmula_server.py` (runs on 127.0.0.1:9920)
