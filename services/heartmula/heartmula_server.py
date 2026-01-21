@@ -74,7 +74,7 @@ def get_output_dir() -> Path:
 @app.on_event("startup")
 async def startup_event():
     """Initialize HeartMula pipeline on startup"""
-    global pipeline
+    global pipeline, pipeline_device, pipeline_dtype
     try:
         model_path = get_model_path()
         version = os.environ.get("HEARTMULA_VERSION", "3B")
@@ -170,6 +170,48 @@ async def generate_music(request: MusicGenerationRequest):
         )
 
         model_inputs = pipeline.preprocess({"tags": tags, "lyrics": lyrics}, **pre_kwargs)
+
+        # Align tensors to the model device/dtype to avoid device mismatch errors.
+        device = torch.device(pipeline_device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        target_dtype = None
+        if pipeline_dtype and "float16" in pipeline_dtype:
+            target_dtype = torch.float16
+        elif pipeline_dtype and "float32" in pipeline_dtype:
+            target_dtype = torch.float32
+
+        def move_to_device(obj):
+            if isinstance(obj, torch.Tensor):
+                t = obj.to(device)
+                if target_dtype is not None:
+                    try:
+                        t = t.to(target_dtype)
+                    except Exception:
+                        pass
+                return t
+            if isinstance(obj, dict):
+                return {k: move_to_device(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [move_to_device(v) for v in obj]
+            return obj
+
+        # Optional debug printing of devices (enable with HEARTMULA_DEBUG=1)
+        if os.environ.get("HEARTMULA_DEBUG", "") == "1":
+            print("model_inputs devices BEFORE move:")
+            def dbg(o, prefix=""):
+                if isinstance(o, torch.Tensor):
+                    print(prefix, type(o), o.device, o.dtype, o.shape)
+                elif isinstance(o, dict):
+                    for k,v in o.items(): dbg(v, prefix+f"{k}.")
+                elif isinstance(o, list):
+                    for i,v in enumerate(o): dbg(v, prefix+f"[{i}].")
+            dbg(model_inputs)
+
+        model_inputs = move_to_device(model_inputs)
+
+        if os.environ.get("HEARTMULA_DEBUG", "") == "1":
+            print("model_inputs devices AFTER move:")
+            dbg(model_inputs)
+
         model_outputs = pipeline._forward(model_inputs, **forward_kwargs)
         # Postprocess will write the file at save_path
         pipeline.postprocess(model_outputs, save_path=str(output_path.with_suffix('.wav')))
