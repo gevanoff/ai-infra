@@ -131,6 +131,8 @@ HEARTMULA_PORT=9920
 HEARTMULA_DEVICE=cuda
 HEARTMULA_DTYPE=float16
 HEARTMULA_VERSION=3B
+# Optional: allowed CIDR(s) to permit to connect to HeartMula port (space-separated list)
+HEARTMULA_ALLOWED_CIDRS="10.10.22.0/24"
 EOF
   chmod 644 "$ENV_FILE"
   chown root:root "$ENV_FILE"
@@ -163,6 +165,38 @@ EOF
   systemctl enable --now com.heartmula.server.service || true
 }
 
+function configure_firewall() {
+  # Configure iptables to allow only the subnets in HEARTMULA_ALLOWED_CIDRS to access HEARTMULA_PORT
+  if ! command -v iptables >/dev/null 2>&1; then
+    echo "iptables not found; skipping firewall configuration"
+    return
+  fi
+
+  port=$(awk -F= '/HEARTMULA_PORT/{print $2}' "$ENV_FILE" | tr -d ' ')
+  port=${port:-9920}
+  allowed=$(awk -F= '/HEARTMULA_ALLOWED_CIDRS/{print $2}' "$ENV_FILE" | tr -d '"')
+  allowed=${allowed:-10.10.22.0/24}
+
+  echo "Configuring iptables: allowing $allowed to access port $port and dropping other sources"
+
+  # Install persistence helper
+  DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent || true
+
+  for cidr in $allowed; do
+    if ! iptables -C INPUT -p tcp -s "$cidr" --dport "$port" -j ACCEPT >/dev/null 2>&1; then
+      iptables -I INPUT -p tcp -s "$cidr" --dport "$port" -j ACCEPT
+    fi
+  done
+
+  if ! iptables -C INPUT -p tcp --dport "$port" -j DROP >/dev/null 2>&1; then
+    iptables -A INPUT -p tcp --dport "$port" -j DROP
+  fi
+
+  # Save rules
+  netfilter-persistent save || iptables-save > /etc/iptables/rules.v4 || true
+}
+
+
 function smoke_check() {
   local tries=12
   local port=$(awk -F= '/HEARTMULA_PORT/{print $2}' "$ENV_FILE" | tr -d ' ')
@@ -187,6 +221,7 @@ function main() {
   create_venv_and_install_python_pkgs
   write_env_file
   install_systemd_service
+  configure_firewall
   smoke_check || true
   echo "Install complete. If the service failed to start, check logs: sudo journalctl -u com.heartmula.server.service -n 200"
 }

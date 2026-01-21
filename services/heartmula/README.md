@@ -84,7 +84,9 @@ HEARTMULA_TIMEOUT_SEC=600  # long runs may require higher timeouts
 
 > **Timeouts:** Generating audio can take longer than a typical HTTP request timeout. The gateway uses `HEARTMULA_TIMEOUT_SEC` (default 120s). If you expect longer runs, increase the gateway timeout (for example `HEARTMULA_TIMEOUT_SEC=600`) or set a duration-aware timeout in your gateway/backends config. The gateway includes a heuristic to extend the timeout based on the `duration` field in requests, but very long generations may still require a higher global timeout.
 
-Use the same host/port you configured in the launchd plist. The gateway host should be able to reach this URL (either localhost or a LAN address if you move HeartMula to a different machine).
+Use the same host/port you configured in the systemd unit or env file. The gateway host should be able to reach this URL (either localhost or a LAN address if you move HeartMula to a different machine).
+
+Firewall: the ada2 installer can configure iptables to only allow access to the HeartMula port from trusted CIDRs. By default the installer uses `HEARTMULA_ALLOWED_CIDRS=10.10.22.0/24` to permit the gateway network; change this in `/etc/heartmula/heartmula.env` if needed.
 
 ## Notes
 
