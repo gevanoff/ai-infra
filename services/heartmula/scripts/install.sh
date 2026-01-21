@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Optional debug mode: set HEARTMULA_DEBUG=true to enable shell tracing
+if [[ "${HEARTMULA_DEBUG:-}" == "true" ]]; then
+  set -x
+fi
+
+# Better diagnostics on failure
+trap 'rc=$?; cmd="${BASH_COMMAND:-}"; if [[ "$rc" -ne 0 ]]; then echo "ERROR: command failed: ${cmd} (exit ${rc})" >&2; fi' ERR
+
+
 require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || {
+  if ! command -v "$1" >/dev/null 2>&1; then
     echo "ERROR: missing required command: $1" >&2
+    echo "Hint: install or add to PATH (e.g. brew install $1)" >&2
     exit 1
-  }
+  fi
 }
 
+echo "HeartMula: verifying host and required commands..." >&2
 if [[ "$(uname -s 2>/dev/null || echo unknown)" != "Darwin" ]]; then
   echo "ERROR: heartmula launchd scripts are macOS-only." >&2
   exit 1
@@ -16,6 +27,9 @@ fi
 require_cmd launchctl
 require_cmd plutil
 require_cmd python3
+
+echo "HeartMula: verified macOS and required commands" >&2
+
 
 LABEL="com.heartmula.server"
 HERE="$(cd "$(dirname "$0")" && pwd)"
