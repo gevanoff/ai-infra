@@ -91,7 +91,7 @@ ensure_service_user() {
       fi
     done
 
-    # Last resort: choose max(existing_uid)+1.
+    # Last resort: choose max(existing_uid)+1 and probe upward until free (with a safety cap).
     local max_uid
     max_uid="$(dscl . -list /Users UniqueID 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
     if [[ -z "${max_uid:-}" ]]; then
@@ -99,11 +99,17 @@ ensure_service_user() {
     fi
 
     cand="$((max_uid + 1))"
-    if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-      echo "${cand}"
-      return 0
-    fi
+    # Probe up to +10000 ids to avoid collisions in crowded systems
+    local limit=$((cand + 10000))
+    while [[ "${cand}" -le "${limit}" ]]; do
+      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
+        echo "${cand}"
+        return 0
+      fi
+      cand=$((cand + 1))
+    done
 
+    echo "ERROR: unable to find free UID after probing up to ${limit}" >&2
     return 1
   }
 
