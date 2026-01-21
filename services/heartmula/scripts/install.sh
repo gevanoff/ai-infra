@@ -135,8 +135,37 @@ sudo chmod -R go-w "${HEARTMULA_VENV}"
 
 if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]] || [[ ! -f "${HEARTMULA_HOME}/heartmula_server.py" ]]; then
   echo "HeartMula: provisioning venv at ${HEARTMULA_VENV} (as root)..." >&2
-  if ! sudo python3 -m venv "${HEARTMULA_VENV}"; then
-    echo "ERROR: failed to create venv at ${HEARTMULA_VENV}" >&2
+
+  # Choose Python interpreter for venv: prefer HEARTMULA_PYTHON, otherwise prefer python3.10 -> 3.11 -> 3.12 -> python3
+  PY_CHOICES=("${HEARTMULA_PYTHON:-}" python3.10 python3.11 python3.12 python3)
+  PY_BIN=""
+  for p in "${PY_CHOICES[@]}"; do
+    if [[ -n "${p}" ]] && command -v "${p}" >/dev/null 2>&1; then
+      # check version
+      ver="$(${p} -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo '')"
+      if [[ "${ver}" =~ ^3\.(10|11|12)$ ]]; then
+        PY_BIN="${p}"
+        break
+      fi
+      # allow python3 if it's 3.10-3.12
+      if [[ "${p}" == "python3" ]] && [[ "${ver}" =~ ^3\.([0-9]+)$ ]] && ( ((${ver#3.} >= 10)) || ((${ver#3.} == 10)) ); then
+        PY_BIN="${p}"
+        break
+      fi
+    fi
+  done
+
+  if [[ -z "${PY_BIN}" ]]; then
+    echo "ERROR: no suitable Python (3.10/3.11/3.12) found. Set HEARTMULA_PYTHON to a suitable interpreter." >&2
+    echo "Detected 'python3' version:" >&2
+    command -v python3 >/dev/null 2>&1 && python3 -V 2>&1 | sed 's/^/  /' >&2 || true
+    echo "Install e.g. 'brew install python@3.10' and re-run (or set HEARTMULA_PYTHON=/path/to/python3.10)" >&2
+    exit 1
+  fi
+
+  echo "HeartMula: using Python interpreter: ${PY_BIN}" >&2
+  if ! sudo "${PY_BIN}" -m venv "${HEARTMULA_VENV}"; then
+    echo "ERROR: failed to create venv at ${HEARTMULA_VENV} using ${PY_BIN}" >&2
     echo "Listing parent dir for diagnostics:" >&2
     sudo ls -la "$(dirname "${HEARTMULA_VENV}")" 2>/dev/null | sed 's/^/  /' >&2 || true
     exit 1
