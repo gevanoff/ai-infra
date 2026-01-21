@@ -97,6 +97,17 @@ function create_venv_and_install_python_pkgs() {
   "$PIP" install -e . || true
   popd >/dev/null
 
+  # Deploy the HeartMula FastAPI shim into the runtime dir if available (idempotent)
+  SHIM_SRC="$(cd "$(dirname "$0")/.." && pwd)/heartmula_server.py"
+  if [ -f "$SHIM_SRC" ]; then
+    echo "Copying HeartMula shim from $SHIM_SRC to $HEARTMULA_HOME/heartmula_server.py"
+    cp -f "$SHIM_SRC" "$HEARTMULA_HOME/heartmula_server.py"
+    chown "$HEARTMULA_USER":"$HEARTMULA_USER" "$HEARTMULA_HOME/heartmula_server.py"
+    chmod 644 "$HEARTMULA_HOME/heartmula_server.py"
+  else
+    echo "Note: heartmula_server.py not found next to scripts (expected at $SHIM_SRC). If you cloned ai-infra elsewhere, copy the shim to $HEARTMULA_HOME/heartmula_server.py"
+  fi
+
   # Try installing Triton (best-effort; may fail on some systems)
   echo "Attempting to install triton (optional acceleration). This may fail — if so, skip it and continue."
   if "$PIP" install triton; then
