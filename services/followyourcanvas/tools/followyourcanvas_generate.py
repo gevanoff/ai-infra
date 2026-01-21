@@ -6,10 +6,11 @@ import urllib.error
 import urllib.request
 
 
-ENV_FILE = "/var/lib/followyourcanvas/followyourcanvas.env"
+DEFAULT_FYC_ENV_FILE = "/var/lib/followyourcanvas/followyourcanvas.env"
+DEFAULT_GATEWAY_ENV_FILE = "/var/lib/gateway/app/.env"
 
 
-def _load_env_file(path: str) -> None:
+def _load_env_file(path: str, *, prefix: str | None = None) -> None:
     if not os.path.exists(path):
         return
     try:
@@ -19,6 +20,8 @@ def _load_env_file(path: str) -> None:
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 key, value = line.split("=", 1)
+                if prefix and not key.startswith(prefix):
+                    continue
                 if key and key not in os.environ:
                     os.environ[key] = value.strip().strip("\"")
     except OSError:
@@ -35,7 +38,18 @@ def _read_input() -> dict:
 
 
 def main() -> int:
-    _load_env_file(ENV_FILE)
+    # Prefer explicit env vars (inherited from the gateway process), but allow
+    # loading FYC_* settings from common env files.
+    env_file_override = os.environ.get("FYC_ENV_FILE", "").strip()
+    if env_file_override:
+        _load_env_file(env_file_override, prefix="FYC_")
+
+    # When the gateway is on a different host than the FollowYourCanvas service,
+    # /var/lib/followyourcanvas/followyourcanvas.env typically won't exist on the
+    # gateway box. In that case, load FYC_* vars from the gateway's .env.
+    _load_env_file(DEFAULT_GATEWAY_ENV_FILE, prefix="FYC_")
+    _load_env_file(DEFAULT_FYC_ENV_FILE, prefix="FYC_")
+
     payload = _read_input()
 
     base_url = os.environ.get("FYC_API_BASE_URL")
