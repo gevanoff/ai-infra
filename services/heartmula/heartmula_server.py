@@ -14,6 +14,15 @@ from pydantic import BaseModel
 import uvicorn
 import torch
 
+# If HEARTMULA_DEVICE=cpu is set, disable MPS detection to avoid inadvertent MPS device selection
+if os.environ.get("HEARTMULA_DEVICE", "").strip().lower() == "cpu":
+    try:
+        if hasattr(torch.backends, "mps"):
+            torch.backends.mps.is_available = lambda: False
+            print("HeartMula: HEARTMULA_DEVICE=cpu set; disabling MPS detection")
+    except Exception:
+        pass
+
 # Import HeartMula after environment setup
 try:
     from heartlib import HeartMuLaGenPipeline
