@@ -222,7 +222,13 @@ async def health_check():
 if __name__ == "__main__":
     # Get port from environment or default to 9920
     port = int(os.environ.get("HEARTMULA_PORT", "9920"))
-    host = os.environ.get("HEARTMULA_HOST", "127.0.0.1")
+    # Default to 0.0.0.0 so the service can be reached from gateway hosts like ada2.
+    # Be cautious: binding to all interfaces exposes the service to the network —
+    # ensure firewall rules or network ACLs restrict access to trusted hosts only.
+    host = os.environ.get("HEARTMULA_HOST", "0.0.0.0")
 
     print(f"Starting HeartMula API server on {host}:{port}")
+    if host == "0.0.0.0":
+        print("WARNING: HeartMula is binding to 0.0.0.0 (all network interfaces). Ensure firewall/ACLs restrict access to trusted hosts such as the gateway.")
+
     uvicorn.run(app, host=host, port=port)
