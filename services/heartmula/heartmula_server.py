@@ -161,7 +161,8 @@ async def generate_music(request: MusicGenerationRequest):
         def move_to_device(obj):
             if isinstance(obj, torch.Tensor):
                 t = obj.to(device)
-                if target_dtype is not None:
+                # Only cast floating-point tensors to target_dtype (avoid changing integer index tensors)
+                if target_dtype is not None and t.is_floating_point():
                     try:
                         t = t.to(target_dtype)
                     except Exception:
