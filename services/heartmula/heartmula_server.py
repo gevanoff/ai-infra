@@ -60,8 +60,44 @@ async def startup_event():
         model_path = get_model_path()
         version = os.environ.get("HEARTMULA_VERSION", "3B")
         dtype_env = os.environ.get("HEARTMULA_DTYPE", "float32")
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        dtype = torch.float16 if dtype_env in ("float16", "fp16") else torch.float32
+
+        # Device selection: allow override with HEARTMULA_DEVICE; default to CUDA if available, otherwise CPU.
+        dev_override = os.environ.get("HEARTMULA_DEVICE", "").strip().lower()
+        device = None
+        if dev_override:
+            if dev_override == "cpu":
+                device = torch.device("cpu")
+            elif dev_override == "cuda":
+                if torch.cuda.is_available():
+                    device = torch.device("cuda")
+                else:
+                    print("WARN: HEARTMULA_DEVICE=cuda requested but no CUDA available; falling back to CPU")
+                    device = torch.device("cpu")
+            elif dev_override == "mps":
+                # MPS autocast support is currently limited; allow forcing but warn
+                if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                    if os.environ.get("HEARTMULA_FORCE_MPS", "0") == "1":
+                        device = torch.device("mps")
+                    else:
+                        print("WARN: MPS available but autocast support may be limited. Defaulting to CPU to avoid errors. Set HEARTMULA_FORCE_MPS=1 to force MPS at your own risk.")
+                        device = torch.device("cpu")
+                else:
+                    print("WARN: HEARTMULA_DEVICE=mps requested but MPS not available; falling back to CPU")
+                    device = torch.device("cpu")
+            else:
+                print(f"WARN: unknown HEARTMULA_DEVICE='{dev_override}'; falling back to auto-detect")
+        if device is None:
+            if torch.cuda.is_available():
+                device = torch.device("cuda")
+            else:
+                # Prefer CPU over MPS by default due to autocast limitations on MPS
+                device = torch.device("cpu")
+
+        # dtype: use fp16 only on CUDA devices when requested
+        if device.type == "cuda" and dtype_env in ("float16", "fp16"):
+            dtype = torch.float16
+        else:
+            dtype = torch.float32
 
         print(f"Loading HeartMuLa model from: {model_path} (version={version}, device={device}, dtype={dtype})")
 
