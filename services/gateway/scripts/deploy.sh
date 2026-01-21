@@ -292,6 +292,15 @@ if [[ -f "${SRC_DIR}/tools/verify_gateway.py" ]]; then
   sudo ln -sf "${APP_DIR}/tools/verify_gateway.py" "${TOOLS_DIR}/verify_gateway.py" || true
 fi
 
+if [[ -f "${SRC_DIR}/tools/heartmula_generate.py" ]]; then
+  # Explicitly copy (some operators customize rsync excludes; this guarantees the file lands).
+  sudo cp "${SRC_DIR}/tools/heartmula_generate.py" "${APP_DIR}/tools/heartmula_generate.py" || true
+  sudo chmod 755 "${APP_DIR}/tools/heartmula_generate.py" || true
+
+  # Convenience: stable path under /var/lib/gateway/tools as well.
+  sudo ln -sf "${APP_DIR}/tools/heartmula_generate.py" "${TOOLS_DIR}/heartmula_generate.py" || true
+fi
+
 # ---- install model alias config (non-destructive) ----
 # The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
 # Only install the example template if no file exists yet.
@@ -300,6 +309,16 @@ ALIASES_EXAMPLE_SRC="${SERVICE_DIR}/env/model_aliases.json.example"
 if [[ ! -f "${ALIASES_DST}" && -f "${ALIASES_EXAMPLE_SRC}" ]]; then
   echo "Installing default model_aliases.json (template)"
   sudo cp "${ALIASES_EXAMPLE_SRC}" "${ALIASES_DST}"
+fi
+
+# ---- install tools registry config (non-destructive) ----
+# The gateway can load tools from /var/lib/gateway/app/tools_registry.json.
+# Only install the example template if no file exists yet.
+TOOLS_REGISTRY_DST="${APP_DIR}/tools_registry.json"
+TOOLS_REGISTRY_EXAMPLE_SRC="${SERVICE_DIR}/env/tools_registry.json.example"
+if [[ ! -f "${TOOLS_REGISTRY_DST}" && -f "${TOOLS_REGISTRY_EXAMPLE_SRC}" ]]; then
+  echo "Installing default tools_registry.json (template)"
+  sudo cp "${TOOLS_REGISTRY_EXAMPLE_SRC}" "${TOOLS_REGISTRY_DST}"
 fi
 
 if [[ ! -f "${APP_DIR}/app/main.py" ]]; then
