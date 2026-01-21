@@ -133,15 +133,28 @@ sudo mkdir -p "${HEARTMULA_VENV}"
 sudo chown -R root:wheel "${HEARTMULA_VENV}"
 sudo chmod -R go-w "${HEARTMULA_VENV}"
 
-if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]]; then
+if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]] || [[ ! -f "${HEARTMULA_HOME}/heartmula_server.py" ]]; then
   echo "HeartMula: provisioning venv at ${HEARTMULA_VENV} (as root)..." >&2
-  sudo python3 -m venv "${HEARTMULA_VENV}"
-  sudo "${HEARTMULA_VENV}/bin/python" -m pip install --upgrade pip setuptools wheel
+  if ! sudo python3 -m venv "${HEARTMULA_VENV}"; then
+    echo "ERROR: failed to create venv at ${HEARTMULA_VENV}" >&2
+    echo "Listing parent dir for diagnostics:" >&2
+    sudo ls -la "$(dirname "${HEARTMULA_VENV}")" 2>/dev/null | sed 's/^/  /' >&2 || true
+    exit 1
+  fi
 
-  echo "HeartMula: installing packages: ${HEARTMULA_PIP_PACKAGES}" >&2
-  # shellcheck disable=SC2086
+  sudo "${HEARTMULA_VENV}/bin/python" -m pip install --upgrade pip setuptools wheel || echo "WARN: pip/setuptools upgrade failed; continuing" >&2
 
-  # Try to preinstall numpy binary wheel to avoid costly builds from source
+  # Verify venv python exists and is executable
+  if ! sudo test -x "${HEARTMULA_VENV}/bin/python" >/dev/null 2>&1; then
+    echo "ERROR: venv python missing or not executable at ${HEARTMULA_VENV}/bin/python" >&2
+    echo "Listing venv/bin for diagnostics:" >&2
+    sudo ls -la "${HEARTMULA_VENV}/bin" 2>/dev/null | sed 's/^/  /' >&2 || true
+    echo "Host python info:" >&2
+    command -v python3 >/dev/null 2>&1 && python3 -V 2>&1 | sed 's/^/  /' >&2 || true
+    echo "Try creating the venv manually as root and inspect errors." >&2
+    exit 1
+  fi
+
   echo "HeartMula: attempting to install numpy binary wheels (try newer versions first)..." >&2
   NUMPY_VERSIONS="${HEARTMULA_NUMPY_VERSIONS:-2.1.3 2.1.2 2.1.1 2.1.0 2.0.3 2.0.2}"
   installed_npy=""
@@ -161,13 +174,21 @@ if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]]; then
     echo "Hint: install Xcode CLI and BLAS libs: xcode-select --install; brew install openblas pkg-config" >&2
   fi
 
-  sudo "${HEARTMULA_VENV}/bin/python" -m pip install --upgrade ${HEARTMULA_PIP_PACKAGES}
+  # Install HeartMuLa packages (may fail; continue so server script is available for manual testing)
+  echo "HeartMula: installing packages: ${HEARTMULA_PIP_PACKAGES}" >&2
+  # shellcheck disable=SC2086
+  if ! sudo "${HEARTMULA_VENV}/bin/python" -m pip install --upgrade ${HEARTMULA_PIP_PACKAGES}; then
+    echo "WARN: pip install of HeartMuLa packages failed; see output above" >&2
+  fi
 
-  # Copy the HeartMula server script
+  # Copy the HeartMula server script (do this regardless so user can run it manually)
   echo "HeartMula: copying server script..." >&2
-  sudo cp "${HERE}/../heartmula_server.py" "${HEARTMULA_HOME}/"
-  sudo chown "${HEARTMULA_USER}":"${HEARTMULA_GROUP}" "${HEARTMULA_HOME}/heartmula_server.py"
-  sudo chmod 755 "${HEARTMULA_HOME}/heartmula_server.py"
+  if sudo cp "${HERE}/../heartmula_server.py" "${HEARTMULA_HOME}/"; then
+    sudo chown "${HEARTMULA_USER}":"${HEARTMULA_GROUP}" "${HEARTMULA_HOME}/heartmula_server.py" || true
+    sudo chmod 755 "${HEARTMULA_HOME}/heartmula_server.py" || true
+  else
+    echo "WARN: failed to copy heartmula_server.py into ${HEARTMULA_HOME}" >&2
+  fi
 fi
 
 sudo chown root:wheel "${HEARTMULA_ENTRYPOINT}" 2>/dev/null || true
