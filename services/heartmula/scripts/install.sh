@@ -30,6 +30,21 @@ require_cmd python3
 
 echo "HeartMula: verified macOS and required commands" >&2
 
+# Verify Python version early to avoid building heavy native deps like numpy
+if [[ "${SKIP_PYTHON_VERSION_CHECK:-}" != "true" ]]; then
+  PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  if [[ "${PY_VER}" != "3.10" && "${PY_VER}" != "3.11" && "${PY_VER}" != "3.12" ]]; then
+    echo "ERROR: Unsupported Python version: ${PY_VER}" >&2
+    echo "HeartMuLa recommends Python 3.10/3.11 (some builds work on 3.12)." >&2
+    echo "Options to proceed:" >&2
+    echo "  - Install Python 3.10 and re-run: brew install python@3.10" >&2
+    echo "  - Or install Xcode Command Line Tools and build deps (xcode-select --install; brew install openblas pkg-config)" >&2
+    echo "  - To force continuation anyway, set SKIP_PYTHON_VERSION_CHECK=true and rerun (not recommended)" >&2
+    exit 1
+  fi
+fi
+
+
 
 LABEL="com.heartmula.server"
 HERE="$(cd "$(dirname "$0")" && pwd)"
