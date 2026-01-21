@@ -68,48 +68,19 @@ ensure_service_user() {
   pick_free_uid() {
     local cand
 
-    # Prefer system/service UID ranges first.
-    for cand in $(seq 401 499); do
-      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-        echo "${cand}"
-        return 0
-      fi
-    done
-
-    for cand in $(seq 200 399); do
-      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-        echo "${cand}"
-        return 0
-      fi
-    done
-
-    # Some managed Macs have many system accounts; fall back to a higher range.
-    for cand in $(seq 600 799); do
-      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-        echo "${cand}"
-        return 0
-      fi
-    done
-
-    # Last resort: choose max(existing_uid)+1 and probe upward until free (with a safety cap).
-    local max_uid
-    max_uid="$(dscl . -list /Users UniqueID 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
-    if [[ -z "${max_uid:-}" ]]; then
-      return 1
-    fi
-
-    cand="$((max_uid + 1))"
-    # Probe up to +10000 ids to avoid collisions in crowded systems
-    local limit=$((cand + 10000))
+    # Start at 501 (standard first non-system user on macOS) and use id -nu to check
+    cand=501
+    local limit=6000
     while [[ "${cand}" -le "${limit}" ]]; do
-      if ! dscl . -search /Users UniqueID "${cand}" >/dev/null 2>&1; then
-        echo "${cand}"
-        return 0
+      if id -nu "${cand}" >/dev/null 2>&1; then
+        cand=$((cand + 1))
+        continue
       fi
-      cand=$((cand + 1))
+      echo "${cand}"
+      return 0
     done
 
-    echo "ERROR: unable to find free UID after probing up to ${limit}" >&2
+    echo "ERROR: unable to find a free UID in range 501..${limit}" >&2
     return 1
   }
 
