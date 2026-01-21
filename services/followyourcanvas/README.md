@@ -16,6 +16,8 @@ contract.
     (run inference via subprocess).
   - For subprocess mode, set `FYC_DEFAULT_CONFIG` to a config file under the repo (relative to
     `FYC_WORKDIR`) unless your client always provides `config` in the request payload.
+  - The shim injects `FYC_REQUEST_JSON` and `FYC_OUTPUT_DIR` per request; you should not set those
+    in the env file.
 - `systemd/followyourcanvas.service`
   - Verify `User`, `WorkingDirectory`, and the `EnvironmentFile` path.
 - `tools/followyourcanvas_generate.py`
