@@ -221,7 +221,7 @@ fi
 # Upstream inference scripts sometimes import modules that may be missing even
 # after installing requirements.txt (e.g. when upstream requirements drift).
 # Ensure a small set of known runtime deps exist.
-ensure_python_deps "${VENV_DIR}" einops
+ensure_python_deps "${VENV_DIR}" einops omegaconf
 
 echo "Syncing shim sources..." >&2
 mkdir -p "${SHIM_DST_ROOT}"
