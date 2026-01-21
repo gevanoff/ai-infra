@@ -24,6 +24,12 @@
       <string>127.0.0.1</string>
       <key>HEARTMULA_PORT</key>
       <string>9920</string>
+      <key>HEARTMULA_DEVICE</key>
+      <string>cpu</string>
+      <key>HEARTMULA_FORCE_MPS</key>
+      <string>0</string>
+      <key>HEARTMULA_DTYPE</key>
+      <string>float32</string>
     </dict>
 
     <key>WorkingDirectory</key>
