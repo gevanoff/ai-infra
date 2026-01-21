@@ -142,11 +142,22 @@ if [[ ! -x "${HEARTMULA_ENTRYPOINT}" ]]; then
   # shellcheck disable=SC2086
 
   # Try to preinstall numpy binary wheel to avoid costly builds from source
-  echo "HeartMula: attempting to install numpy wheel (binary) first..." >&2
-  if sudo "${HEARTMULA_VENV}/bin/python" -m pip install --only-binary=:all: --upgrade numpy==2.0.2; then
-    echo "HeartMula: numpy wheel installed successfully" >&2
-  else
-    echo "WARN: numpy wheel install failed; falling back to full package install (may require Xcode CLI and BLAS libs)" >&2
+  echo "HeartMula: attempting to install numpy binary wheels (try newer versions first)..." >&2
+  NUMPY_VERSIONS="${HEARTMULA_NUMPY_VERSIONS:-2.1.3 2.1.2 2.1.1 2.1.0 2.0.3 2.0.2}"
+  installed_npy=""
+  for v in $NUMPY_VERSIONS; do
+    echo "HeartMula: attempting numpy==$v (binary)" >&2
+    if sudo "${HEARTMULA_VENV}/bin/python" -m pip install --only-binary=:all: --upgrade "numpy==${v}"; then
+      echo "HeartMula: numpy wheel ${v} installed successfully" >&2
+      installed_npy="${v}"
+      break
+    else
+      echo "HeartMula: numpy==$v wheel not available or failed; trying next..." >&2
+    fi
+  done
+
+  if [[ -z "${installed_npy}" ]]; then
+    echo "WARN: no numpy binary wheel succeeded; falling back to full package install (may require Xcode CLI and BLAS libs)" >&2
     echo "Hint: install Xcode CLI and BLAS libs: xcode-select --install; brew install openblas pkg-config" >&2
   fi
 
