@@ -13,6 +13,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
 import torch
+import logging
+
+# Configure logging to suppress torchtune warnings
+logging.getLogger("torchtune.modules.attention").setLevel(logging.ERROR)
 
 # Optional triton check (triton is an optional acceleration library; absence is expected on CPU-only systems)
 try:
