@@ -247,6 +247,36 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "heartmula"}
 
+
+@app.get("/healthz")
+async def healthz():
+    """Liveness check (compatible with gateway expectations)."""
+    return {"status": "healthy", "service": "heartmula"}
+
+
+@app.get("/readyz")
+async def readyz():
+    """Readiness check: returns 200 when pipeline is initialized and ready to serve.
+
+    Returns 503 if the pipeline is not yet initialized.
+    """
+    if pipeline is None:
+        # Not ready yet
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail={"status": "not ready", "service": "heartmula"})
+
+    # Optionally include device/dtype info for debugging
+    info = {"status": "ready", "service": "heartmula"}
+    try:
+        if pipeline_device:
+            info["device"] = pipeline_device
+        if pipeline_dtype:
+            info["dtype"] = pipeline_dtype
+    except Exception:
+        pass
+    return info
+
 if __name__ == "__main__":
     # Get port from environment or default to 9920
     port = int(os.environ.get("HEARTMULA_PORT", "9920"))
