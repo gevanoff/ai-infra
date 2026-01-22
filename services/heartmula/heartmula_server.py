@@ -229,12 +229,13 @@ async def generate_music(request: MusicGenerationRequest):
         final_path = wav_path
 
         # Create response
+        effective_prompt = request.style or request.lyrics or request.prompt or "instrumental"
         response = MusicGenerationResponse(
             id=generation_id,
             status="completed",
             audio_url=f"/audio/{generation_id}.wav",  # Serve via FastAPI
             duration=request.duration,
-            prompt=request.prompt
+            prompt=effective_prompt
         )
 
         print(f"Music generated successfully: {generation_id}")
