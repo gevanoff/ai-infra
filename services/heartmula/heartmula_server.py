@@ -33,7 +33,9 @@ except ImportError as e:
 app = FastAPI(title="HeartMula Music Generation API")
 
 class MusicGenerationRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = None  # For backward compatibility
+    lyrics: Optional[str] = None
+    style: Optional[str] = None  # Style description for tags
     duration: Optional[int] = 30  # seconds
     temperature: Optional[float] = 1.0
     top_k: Optional[int] = 50
@@ -145,11 +147,22 @@ async def generate_music(request: MusicGenerationRequest):
         # Generate unique ID for this request
         generation_id = str(uuid.uuid4())
 
-        # Prepare lyrics (use prompt as lyrics)
-        lyrics = request.prompt
+        # Prepare lyrics and tags
+        lyrics = request.lyrics or ""
+        if request.style:
+            tags = request.style
+        elif request.tags:
+            tags = request.tags
+        else:
+            tags = "electronic,ambient"
 
-        # Prepare tags
-        tags = request.tags or "electronic,ambient"
+        # Backward compatibility: if no lyrics but prompt provided, use heuristic
+        if not lyrics and request.prompt:
+            prompt = request.prompt.strip()
+            if "\n" in prompt or len(prompt.split()) > 20:  # heuristic: if multiline or long, treat as lyrics
+                lyrics = prompt
+            else:  # treat as style description, use for tags
+                tags = prompt
 
         # Convert duration to milliseconds
         max_audio_length_ms = request.duration * 1000 if request.duration else 30000

@@ -1,6 +1,13 @@
 import torch
 from pathlib import Path
 
+# Provide a fake 'heartlib' module so importing the server doesn't exit during tests
+import sys, types
+fake_heartlib = types.ModuleType("heartlib")
+class HeartMuLaGenPipeline: pass
+fake_heartlib.HeartMuLaGenPipeline = HeartMuLaGenPipeline
+sys.modules["heartlib"] = fake_heartlib
+
 # Import helper via importlib to avoid package import issues in tests
 import importlib.util
 spec = importlib.util.spec_from_file_location("heartmula_server", Path(__file__).resolve().parents[1] / "heartmula_server.py")

@@ -72,6 +72,7 @@ Environment variables you may want to set:
 - `HEARTMULA_VERSION` — model version to load (default: `3B`).
 - `HEARTMULA_DTYPE` — `float32` or `float16` (use `float16` only with CUDA devices).
 - `HEARTMULA_DEVICE` — preferred device (`cpu` or `cuda`). **Default is CUDA if available, otherwise CPU.** Use `HEARTMULA_DEVICE=cpu` to force CPU.
+- `PYTORCH_CUDA_ALLOC_CONF` — PyTorch CUDA memory allocator configuration (e.g., `expandable_segments:True` to reduce fragmentation).
 
 ## Recommended HeartMula command
 
