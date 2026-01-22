@@ -381,6 +381,34 @@ done
 echo "Checking port ${PORT}..."
 sudo lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN || true
 
+# ---- best-effort: pre-warm / validate music UI ----
+# If the static music UI exists in the deployed tree, try to fetch it to warm caches
+# and validate basic accessibility. This is best-effort and will not fail the deploy.
+if [[ -f "${APP_DIR}/app/static/music.html" ]]; then
+  echo "Checking /ui/music..."
+  MUSIC_URL="http://127.0.0.1:${PORT}/ui/music"
+  UI_OK=0
+  for i in {1..6}; do
+    if curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" >/dev/null 2>&1; then
+      echo "OK: /ui/music responded"
+      UI_OK=1
+      break
+    else
+      status=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" || true)
+      if [[ "${status}" == "403" ]]; then
+        echo "WARN: /ui/music returned 403 (UI may be disabled or your deploy host is not allowlisted)"
+        UI_OK=1
+        break
+      fi
+    fi
+    sleep 0.2
+  done
+
+  if [[ "${UI_OK}" -ne 1 ]]; then
+    echo "WARN: /ui/music check failed or timed out (non-200/403 responses); UI may be disabled or misconfigured" >&2
+  fi
+fi
+
 echo "Deploy complete."
 
 if [[ ${POST_DEPLOY_HOOK} -eq 1 ]]; then
