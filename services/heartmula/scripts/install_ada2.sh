@@ -133,8 +133,8 @@ HEARTMULA_DTYPE=float16
 HEARTMULA_VERSION=1B
 # Optional: allowed CIDR(s) to permit to connect to HeartMula port (space-separated list)
 HEARTMULA_ALLOWED_CIDRS="10.10.22.0/24"
-# PyTorch CUDA memory management to avoid fragmentation
-PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+# PyTorch CUDA memory management
+PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.8,max_split_size_mb:1024
 EOF
   chmod 644 "$ENV_FILE"
   chown root:root "$ENV_FILE"
