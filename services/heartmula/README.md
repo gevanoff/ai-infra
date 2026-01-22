@@ -69,7 +69,7 @@ Environment variables you may want to set:
 
 - `HEARTMULA_MODEL_PATH` — path to model checkpoints (default: `/var/lib/heartmula/ckpt`).
 - `HEARTMULA_OUTPUT_DIR` — where generated audio is written (default: `/var/lib/heartmula/output`).
-- `HEARTMULA_VERSION` — model version to load (default: `3B`). Use smaller versions like `1B` for lower memory usage.
+- `HEARTMULA_VERSION` — model version to load (default: `3B`). Use smaller versions if available for lower memory usage.
 - `HEARTMULA_DTYPE` — `float32` or `float16` (use `float16` only with CUDA devices).
 - `HEARTMULA_DEVICE` — preferred device (`cpu` or `cuda`). **Default is CUDA if available, otherwise CPU.** Use `HEARTMULA_DEVICE=cpu` to force CPU.
 - `PYTORCH_CUDA_ALLOC_CONF` — PyTorch CUDA memory allocator configuration (e.g., `expandable_segments:True` to reduce fragmentation).

@@ -130,7 +130,7 @@ HEARTMULA_HOST=0.0.0.0
 HEARTMULA_PORT=9920
 HEARTMULA_DEVICE=cuda
 HEARTMULA_DTYPE=float16
-HEARTMULA_VERSION=1B
+HEARTMULA_VERSION=3B
 # Optional: allowed CIDR(s) to permit to connect to HeartMula port (space-separated list)
 HEARTMULA_ALLOWED_CIDRS="10.10.22.0/24"
 # PyTorch CUDA memory management
