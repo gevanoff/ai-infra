@@ -147,6 +147,8 @@ Optional request guardrails
 
 Gateway can automatically pick a backend + model per request:
 
+Agent specs: you can provide `AGENT_SPECS_PATH` (JSON) to define named agents and their configuration (model, tier, tool allowlists). An example template lives at `services/gateway/env/agent_specs.json.example` and demonstrates a `music` agent that allows `heartmula_generate` for tier 1 agents.
+
 - Tool-heavy / agentic requests (`tools` present) route to the configured **strong** model.
 - “Fast/cheap” default routes to the configured **fast** model.
 - Long-context requests route to MLX (if configured) once input size crosses a threshold.
