@@ -52,6 +52,28 @@ pipeline: Optional[HeartMuLaGenPipeline] = None
 pipeline_device: Optional[str] = None
 pipeline_dtype: Optional[str] = None
 
+
+def align_tensors_to_device(obj, device: torch.device, target_dtype: Optional[torch.dtype] = None):
+    """Recursively move tensors in nested dict/list structures to `device` and cast
+    floating-point tensors to `target_dtype` if provided.
+
+    This is a module-level helper to allow unit testing of device/dtype alignment.
+    """
+    if isinstance(obj, torch.Tensor):
+        t = obj.to(device)
+        if target_dtype is not None and t.is_floating_point():
+            try:
+                t = t.to(target_dtype)
+            except Exception:
+                pass
+        return t
+    if isinstance(obj, dict):
+        return {k: align_tensors_to_device(v, device, target_dtype) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [align_tensors_to_device(v, device, target_dtype) for v in obj]
+    return obj
+
+
 def get_model_path() -> str:
     """Get the model path from environment or default"""
     return os.environ.get("HEARTMULA_MODEL_PATH", "./ckpt")
@@ -158,22 +180,6 @@ async def generate_music(request: MusicGenerationRequest):
         elif pipeline_dtype and "float32" in pipeline_dtype:
             target_dtype = torch.float32
 
-        def move_to_device(obj):
-            if isinstance(obj, torch.Tensor):
-                t = obj.to(device)
-                # Only cast floating-point tensors to target_dtype (avoid changing integer index tensors)
-                if target_dtype is not None and t.is_floating_point():
-                    try:
-                        t = t.to(target_dtype)
-                    except Exception:
-                        pass
-                return t
-            if isinstance(obj, dict):
-                return {k: move_to_device(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [move_to_device(v) for v in obj]
-            return obj
-
         # Optional debug printing of devices (enable with HEARTMULA_DEBUG=1)
         if os.environ.get("HEARTMULA_DEBUG", "") == "1":
             print("model_inputs devices BEFORE move:")
@@ -186,7 +192,7 @@ async def generate_music(request: MusicGenerationRequest):
                     for i,v in enumerate(o): dbg(v, prefix+f"[{i}].")
             dbg(model_inputs)
 
-        model_inputs = move_to_device(model_inputs)
+        model_inputs = align_tensors_to_device(model_inputs, device, target_dtype)
 
         if os.environ.get("HEARTMULA_DEBUG", "") == "1":
             print("model_inputs devices AFTER move:")
