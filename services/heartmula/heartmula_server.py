@@ -215,6 +215,10 @@ async def generate_music(request: MusicGenerationRequest):
         # Postprocess will write the file at save_path
         pipeline.postprocess(model_outputs, save_path=str(output_path.with_suffix('.wav')))
 
+        # Clear CUDA cache to free memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         # Confirm file exists
         wav_path = output_path.with_suffix('.wav')
         if not wav_path.exists():
