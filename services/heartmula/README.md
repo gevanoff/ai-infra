@@ -6,7 +6,7 @@ This service is intended to run **only on localhost** (bind `127.0.0.1`) and be 
 
 ## What you edit
 
-- Systemd template: `systemd/com.heartmula.server.service.example`
+- Systemd template: `systemd/heartmula.service.example`
   - Update `EnvironmentFile` values in `/etc/heartmula/heartmula.env` to match your installation.
   - Keep `HEARTMULA_HOST=127.0.0.1` (or equivalent) so it is not exposed to the LAN.
   - The port is arbitrary; pick one and keep the gateway pointed at it.
@@ -14,7 +14,7 @@ This service is intended to run **only on localhost** (bind `127.0.0.1`) and be 
 ## Runtime layout
 
 - Runtime dir: `/var/lib/heartmula`
-- Logs managed via `journalctl -u com.heartmula.server.service`
+- Logs managed via `journalctl -u heartmula.service`
 
 ## Installation (ada2 / Ubuntu/Debian-like)
 

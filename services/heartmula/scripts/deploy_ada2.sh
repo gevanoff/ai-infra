@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Deploy helper for ada2 (systemd)
 ENV_FILE=/etc/heartmula/heartmula.env
-SERVICE=com.heartmula.server.service
+SERVICE=heartmula.service
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Env file $ENV_FILE not found. Run install_ada2.sh first."
@@ -34,6 +34,6 @@ for i in 1 2 3 4 5; do
   sleep 2
 done
 
-echo "Health check failed; see journalctl -u com.heartmula.server.service" >&2
-journalctl -u com.heartmula.server.service --no-pager -n 200 || true
+echo "Health check failed; see journalctl -u heartmula.service" >&2
+journalctl -u heartmula.service --no-pager -n 200 || true
 exit 2

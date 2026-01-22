@@ -35,7 +35,7 @@ main() {
 
   require_cmd systemctl
 
-  SERVICE="com.heartmula.server.service"
+  SERVICE="heartmula.service"
   SERVICE_FILE="/etc/systemd/system/${SERVICE}"
   VARDIR="${HEARTMULA_HOME:-/var/lib/heartmula}"
   LOGDIR="/var/log/heartmula"

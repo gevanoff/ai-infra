@@ -21,7 +21,7 @@ This document is a factual inventory of infrastructure components described by t
 - `ai-infra/services/ollama/launchd/com.ollama.service.plist.example`
 - `ai-infra/services/mlx/launchd/com.mlx.openai.server.plist.example`
 - `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
-- `ai-infra/services/heartmula/systemd/com.heartmula.server.service.example`
+- `ai-infra/services/heartmula/systemd/heartmula.service.example`
 - `ai-infra/services/gateway/env/gateway.env.example`
 - `ai-infra/services/gateway/env/model_aliases.json.example`
 - `ai-infra/services/gateway/env/tools_registry.json.example`
@@ -71,11 +71,11 @@ Services are described as macOS `launchd` jobs in `ai-infra/services/*/launchd/*
   - Source: `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
 
 - HeartMula music generator (systemd service; optional)
-  - Unit: `com.heartmula.server.service`
+  - Unit: `heartmula.service`
   - ExecStart: `/var/lib/heartmula/env/bin/python /var/lib/heartmula/heartmula_server.py`
   - Listener: `127.0.0.1:9920` (default in env)
-  - Logs: `journalctl -u com.heartmula.server.service`
-  - Source: `ai-infra/services/heartmula/systemd/com.heartmula.server.service.example`
+  - Logs: `journalctl -u heartmula.service`
+  - Source: `ai-infra/services/heartmula/systemd/heartmula.service.example`
 
 Upstream connections configured for gateway:
 

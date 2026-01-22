@@ -10,5 +10,5 @@ require_cmd() {
 
 require_cmd systemctl
 
-SERVICE="com.heartmula.server.service"
+SERVICE="heartmula.service"
 sudo systemctl --no-pager status "$SERVICE" | sed -n '1,220p'

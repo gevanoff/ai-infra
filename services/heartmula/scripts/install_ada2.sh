@@ -13,7 +13,7 @@ HEARTMULA_USER=${HEARTMULA_USER:-heartmula}
 HEARTMULA_HOME=${HEARTMULA_HOME:-/var/lib/heartmula}
 VENV_PATH="$HEARTMULA_HOME/env"
 ENV_FILE="/etc/heartmula/heartmula.env"
-SERVICE_FILE="/etc/systemd/system/com.heartmula.server.service"
+SERVICE_FILE="/etc/systemd/system/heartmula.service"
 REPO_URL="https://github.com/HeartMuLa/heartlib.git"
 PYTHON_BIN=${PYTHON_BIN:-python3.10}
 
@@ -164,7 +164,7 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable --now com.heartmula.server.service || true
+  systemctl enable --now heartmula.service || true
 }
 
 function configure_firewall() {
@@ -212,7 +212,7 @@ function smoke_check() {
     sleep 5
   done
   echo "HeartMula failed to respond to health check" >&2
-  journalctl -u com.heartmula.server.service --no-pager -n 200 || true
+  journalctl -u heartmula.service --no-pager -n 200 || true
   return 1
 }
 
@@ -225,7 +225,7 @@ function main() {
   install_systemd_service
   configure_firewall
   smoke_check || true
-  echo "Install complete. If the service failed to start, check logs: sudo journalctl -u com.heartmula.server.service -n 200"
+  echo "Install complete. If the service failed to start, check logs: sudo journalctl -u heartmula.service -n 200"
 }
 
 main "$@"
