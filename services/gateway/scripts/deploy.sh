@@ -301,6 +301,19 @@ if [[ -f "${AI_INFRA_ROOT}/services/heartmula/tools/heartmula_generate.py" ]]; t
   sudo ln -sf "${APP_DIR}/tools/heartmula_generate.py" "${TOOLS_DIR}/heartmula_generate.py" || true
 fi
 
+# Ensure new UI static assets are present even if rsync excludes vary.
+# This explicitly installs the music UI so administrators who customize rsync still get it.
+if [[ -f "${SRC_DIR}/app/static/music.html" ]]; then
+  sudo cp "${SRC_DIR}/app/static/music.html" "${APP_DIR}/app/static/music.html" || true
+  sudo chown gateway:staff "${APP_DIR}/app/static/music.html" || true
+  sudo chmod 644 "${APP_DIR}/app/static/music.html" || true
+fi
+if [[ -f "${SRC_DIR}/app/static/music.js" ]]; then
+  sudo cp "${SRC_DIR}/app/static/music.js" "${APP_DIR}/app/static/music.js" || true
+  sudo chown gateway:staff "${APP_DIR}/app/static/music.js" || true
+  sudo chmod 644 "${APP_DIR}/app/static/music.js" || true
+fi
+
 # ---- install model alias config (non-destructive) ----
 # The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
 # Only install the example template if no file exists yet.
