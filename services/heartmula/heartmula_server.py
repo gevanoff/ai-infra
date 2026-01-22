@@ -149,12 +149,12 @@ async def generate_music(request: MusicGenerationRequest):
 
         # Prepare lyrics and tags
         lyrics = request.lyrics or ""
-        if request.style:
-            tags = request.style
-        elif request.tags:
-            tags = request.tags
+        if request.style and not lyrics:
+            # If style provided but no lyrics, use style as lyrics for better conditioning
+            lyrics = request.style
+            tags = request.tags or "electronic,ambient"
         else:
-            tags = "electronic,ambient"
+            tags = request.style or request.tags or "electronic,ambient"
 
         # Backward compatibility: if no lyrics but prompt provided, use heuristic
         if not lyrics and request.prompt:
@@ -164,8 +164,11 @@ async def generate_music(request: MusicGenerationRequest):
             else:  # treat as style description, use for tags
                 tags = prompt
 
-        # Convert duration to milliseconds
-        max_audio_length_ms = request.duration * 1000 if request.duration else 30000
+        # Convert duration to milliseconds, limit for lyrics to save memory
+        requested_duration = request.duration or 30
+        if lyrics and requested_duration > 30:
+            requested_duration = 30  # Limit duration with lyrics to reduce memory usage
+        max_audio_length_ms = requested_duration * 1000
 
         # Generate output path
         output_dir = get_output_dir()
@@ -234,7 +237,7 @@ async def generate_music(request: MusicGenerationRequest):
             id=generation_id,
             status="completed",
             audio_url=f"/audio/{generation_id}.wav",  # Serve via FastAPI
-            duration=request.duration,
+            duration=requested_duration,
             prompt=effective_prompt
         )
 
