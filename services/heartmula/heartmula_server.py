@@ -90,9 +90,8 @@ def get_output_dir() -> Path:
     output_dir.mkdir(exist_ok=True, parents=True)
     return output_dir
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize HeartMula pipeline on startup"""
+def load_heartmula_pipeline():
+    """Load the HeartMula pipeline with current config"""
     global pipeline, pipeline_device, pipeline_dtype
     try:
         model_path = get_model_path()
@@ -146,9 +145,16 @@ async def startup_event():
             print("Enabled lazy loading for HeartMula pipeline")
 
         print("HeartMula pipeline initialized successfully")
+        return True
     except Exception as e:
         print(f"Failed to initialize HeartMula pipeline: {e}")
-        raise
+        return False
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize HeartMula pipeline on startup"""
+    if not load_heartmula_pipeline():
+        raise RuntimeError("Failed to load HeartMula pipeline on startup")
 
 @app.post("/v1/music/generations", response_model=MusicGenerationResponse)
 async def generate_music(request: MusicGenerationRequest):
@@ -168,6 +174,10 @@ async def generate_music(request: MusicGenerationRequest):
             tags = request.tags or "electronic,ambient"
         else:
             tags = request.style or request.tags or "electronic,ambient"
+
+        # Prepend style to lyrics for better conditioning
+        if request.style and lyrics:
+            lyrics = f"Style: {request.style}\n{lyrics}"
 
         # Backward compatibility: if no lyrics but prompt provided, use heuristic
         if not lyrics and request.prompt:
@@ -255,6 +265,16 @@ async def generate_music(request: MusicGenerationRequest):
             torch.cuda.empty_cache()
         import gc
         gc.collect()
+
+        # Reload pipeline to free any remaining memory
+        print("Reloading HeartMula pipeline to free memory...")
+        global pipeline
+        del pipeline
+        pipeline = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        load_heartmula_pipeline()
 
         # Confirm file exists
         wav_path = output_path.with_suffix('.wav')
