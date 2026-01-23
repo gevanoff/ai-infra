@@ -22,6 +22,9 @@ This document is a factual inventory of infrastructure components described by t
 - `ai-infra/services/mlx/launchd/com.mlx.openai.server.plist.example`
 - `ai-infra/services/nexa/launchd/com.nexa.image.server.plist.example`
 - `ai-infra/services/heartmula/systemd/heartmula.service.example`
+- `ai-infra/services/pocket-tts/README.md`
+- `ai-infra/services/pocket-tts/launchd/com.pocket-tts.server.plist.example`
+- `ai-infra/services/pocket-tts/systemd/pocket-tts.service.example`
 - `ai-infra/services/gateway/env/gateway.env.example`
 - `ai-infra/services/gateway/env/model_aliases.json.example`
 - `ai-infra/services/gateway/env/tools_registry.json.example`
@@ -77,6 +80,14 @@ Services are described as macOS `launchd` jobs in `ai-infra/services/*/launchd/*
   - Logs: `journalctl -u heartmula.service`
   - Source: `ai-infra/services/heartmula/systemd/heartmula.service.example`
 
+- Pocket TTS shim (launchd job + systemd service; optional)
+  - Label: `com.pocket-tts.server`
+  - Program: `/var/lib/pocket-tts/env/bin/uvicorn pocket_tts_server:app --host 0.0.0.0 --port 9940`
+  - Listener: `0.0.0.0:9940` (default in env)
+  - Stdout/stderr logs: `/var/log/pocket-tts/pocket-tts.{out,err}.log`
+  - Linux unit: `pocket-tts.service` (`ExecStart=/var/lib/pocket-tts/env/bin/uvicorn pocket_tts_server:app ...`)
+  - Source: `ai-infra/services/pocket-tts/launchd/com.pocket-tts.server.plist.example`, `ai-infra/services/pocket-tts/systemd/pocket-tts.service.example`
+
 Upstream connections configured for gateway:
 
 - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
@@ -92,6 +103,7 @@ Source: `ai-infra/services/gateway/env/gateway.env.example`
   - `ai-infra/services/ollama/`
   - `ai-infra/services/mlx/`
   - `ai-infra/services/nexa/`
+  - `ai-infra/services/pocket-tts/`
   - `ai-infra/services/all/`
   - `ai-infra/services/followyourcanvas/`
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Pocket TTS FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=pockettts
+Group=pockettts
+WorkingDirectory=/var/lib/pocket-tts
+EnvironmentFile=/etc/pocket-tts/pocket-tts.env
+ExecStart=/var/lib/pocket-tts/env/bin/uvicorn pocket_tts_server:app --host ${POCKET_TTS_HOST} --port ${POCKET_TTS_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

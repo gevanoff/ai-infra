@@ -8,6 +8,7 @@ macOS launchd-based infrastructure scripts for running local AI services.
 - `services/heartmula`: HeartMula music generation runtime (for gateway audio backends).
 - `services/ollama`: Ollama runtime + model manifest.
 - `services/mlx`: MLX OpenAI server runtime + model manifest.
+- `services/pocket-tts`: Pocket TTS FastAPI shim (macOS launchd + Ubuntu systemd).
 - `services/followyourcanvas`: FollowYourCanvas video generation backend (Linux/systemd).
 - `services/all`: convenience scripts that call all services.
 
@@ -62,6 +63,12 @@ Models are listed in [services/ollama/models/manifest.txt](services/ollama/model
 - Restart/status/uninstall: `services/mlx/scripts/{restart,status,uninstall}.sh`
 
 Models are listed in [services/mlx/models/manifest.txt](services/mlx/models/manifest.txt).
+
+## Pocket TTS
+
+- Install service: `services/pocket-tts/scripts/install.sh`
+- Deploy shim updates: `services/pocket-tts/scripts/deploy.sh`
+- Restart/uninstall: `services/pocket-tts/scripts/{restart,uninstall}.sh`
 
 ## All services
 
