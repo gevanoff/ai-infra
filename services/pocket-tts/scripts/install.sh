@@ -126,7 +126,7 @@ if [[ "$OS" == "Darwin" ]]; then
   if ! id -u "${POCKET_TTS_USER}" >/dev/null 2>&1; then
     note "Creating system user '${POCKET_TTS_USER}'..."
     # Find the next available UID (starting from 501 for system users)
-    local next_uid=501
+    next_uid=501
     while id -u "$next_uid" >/dev/null 2>&1; do
       ((next_uid++))
     done
