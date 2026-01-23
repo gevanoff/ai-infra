@@ -202,7 +202,21 @@ async def generate_music(request: MusicGenerationRequest):
             save_path=str(output_path.with_suffix('.wav')),
         )
 
-        model_inputs = pipeline.preprocess({"lyrics": lyrics, "tags": tags}, **pre_kwargs)
+        # Write lyrics and tags to temp files as expected by preprocess
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as lyrics_file:
+            lyrics_file.write(lyrics)
+            lyrics_path = lyrics_file.name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tags_file:
+            tags_file.write(tags)
+            tags_path = tags_file.name
+
+        try:
+            model_inputs = pipeline.preprocess({"lyrics": lyrics_path, "tags": tags_path}, **pre_kwargs)
+        finally:
+            # Clean up temp files
+            os.unlink(lyrics_path)
+            os.unlink(tags_path)
 
         # Align tensors to the model device/dtype to avoid device mismatch errors.
         device = torch.device(pipeline_device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -234,9 +248,13 @@ async def generate_music(request: MusicGenerationRequest):
         # Postprocess will write the file at save_path
         pipeline.postprocess(model_outputs, save_path=str(output_path.with_suffix('.wav')))
 
-        # Clear CUDA cache to free memory
+        # Aggressive memory cleanup
+        del model_inputs
+        del model_outputs
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        import gc
+        gc.collect()
 
         # Confirm file exists
         wav_path = output_path.with_suffix('.wav')
