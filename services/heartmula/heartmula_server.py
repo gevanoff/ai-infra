@@ -136,8 +136,6 @@ async def startup_event():
             device=device,
             dtype=dtype,
             version=version,
-            mula_device=device,
-            codec_device=torch.device('cpu'),
         )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
         pipeline_dtype = str(dtype)
