@@ -148,7 +148,7 @@ if [[ "$OS" == "Darwin" ]]; then
   fi
 
   sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-  sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install pocket-tts fastapi "uvicorn[standard]" pydantic
+  sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install pocket-tts fastapi "uvicorn[standard]" "pydantic==1.10.13"
 
   install_env_file
   install_shim
