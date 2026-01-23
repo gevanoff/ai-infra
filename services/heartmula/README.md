@@ -79,3 +79,21 @@ Environment variables you may want to set:
 The service runs the FastAPI server automatically:
 
 - `python /var/lib/heartmula/heartmula_server.py` (runs on 127.0.0.1:9920)
+
+## Request format (style/genre guidance)
+
+HeartMula expects lyrics and tags internally, so the HTTP API accepts a few fields and maps them to those inputs:
+
+```json
+{
+  "lyrics": "optional lyric text",
+  "style": "genre: lo-fi, chillhop; mood: warm, nostalgic",
+  "tags": "electronic,ambient",
+  "duration": 30
+}
+```
+
+- `lyrics` provides explicit lyrical content.
+- `style` is parsed for tag-like tokens (comma/semicolon-separated). Prefixes like `genre:` or `mood:` are stripped, and the resulting tokens are merged with `tags`.
+- If `style` is provided but `lyrics` is not, the service also uses the `style` text as lyrics to improve conditioning.
+- `tags` remains the direct way to specify genre/texture hints; when both are present the service de-duplicates and merges them.

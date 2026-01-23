@@ -6,7 +6,8 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
+import re
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -57,6 +58,47 @@ class MusicGenerationResponse(BaseModel):
 pipeline: Optional[HeartMuLaGenPipeline] = None
 pipeline_device: Optional[str] = None
 pipeline_dtype: Optional[str] = None
+
+
+TAG_PREFIX_RE = re.compile(r"^(genre|style|mood|tags)\s*[:=]\s*", re.IGNORECASE)
+STYLE_OF_RE = re.compile(r"\bin the style of\b", re.IGNORECASE)
+
+
+def _split_tags(raw: str) -> list[str]:
+    tokens = re.split(r"[,\n;/]+", raw)
+    cleaned = []
+    for token in tokens:
+        tag = token.strip()
+        if not tag:
+            continue
+        cleaned.append(tag.lower())
+    return cleaned
+
+
+def _extract_style_tags(style: str) -> list[str]:
+    tags: list[str] = []
+    for line in style.splitlines():
+        cleaned = TAG_PREFIX_RE.sub("", line.strip())
+        cleaned = STYLE_OF_RE.sub("", cleaned).strip()
+        if not cleaned:
+            continue
+        tags.extend(_split_tags(cleaned))
+    return tags
+
+
+def _merge_tags(*tag_groups: Iterable[str]) -> str:
+    seen = set()
+    ordered: list[str] = []
+    for group in tag_groups:
+        for tag in group:
+            if not tag:
+                continue
+            norm = tag.strip().lower()
+            if not norm or norm in seen:
+                continue
+            seen.add(norm)
+            ordered.append(norm)
+    return ",".join(ordered)
 
 
 def align_tensors_to_device(obj, device: torch.device, target_dtype: Optional[torch.dtype] = None):
@@ -169,7 +211,9 @@ async def generate_music(request: MusicGenerationRequest):
 
         # Prepare lyrics and tags
         lyrics = request.lyrics or ""
-        tags = request.tags or "electronic,ambient"
+        base_tags = request.tags or "electronic,ambient"
+        style_tags = _extract_style_tags(request.style or "")
+        tags = _merge_tags(_split_tags(base_tags), style_tags)
         # Note: style conditioning may not be supported by HeartMula, tags are used for genre but may be ignored
 
         if request.style and not lyrics:
@@ -182,7 +226,8 @@ async def generate_music(request: MusicGenerationRequest):
             if "\n" in prompt or len(prompt.split()) > 20:  # heuristic: if multiline or long, treat as lyrics
                 lyrics = prompt
             else:  # treat as style description, use for tags
-                tags = f"{prompt},{tags}"
+                prompt_tags = _split_tags(prompt)
+                tags = _merge_tags(prompt_tags, _split_tags(tags))
 
         # Convert duration to milliseconds, limit for lyrics to save memory
         requested_duration = request.duration or 30
