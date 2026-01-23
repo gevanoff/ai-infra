@@ -170,9 +170,7 @@ async def generate_music(request: MusicGenerationRequest):
         # Prepare lyrics and tags
         lyrics = request.lyrics or ""
         tags = request.tags or "electronic,ambient"
-        if request.style:
-            # Include style in tags for genre conditioning
-            tags = f"{request.style},{tags}"
+        # Note: style conditioning may not be supported by HeartMula, tags are used for genre but may be ignored
 
         if request.style and not lyrics:
             # If style provided but no lyrics, use style as lyrics for better conditioning
