@@ -136,6 +136,8 @@ async def startup_event():
             device=device,
             dtype=dtype,
             version=version,
+            mula_device=device,
+            codec_device=torch.device('cpu'),
         )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
         pipeline_dtype = str(dtype)
@@ -144,11 +146,6 @@ async def startup_event():
         if lazy:
             pipeline.lazy_load = True
             print("Enabled lazy loading for HeartMula pipeline")
-
-        # Set codec to CPU to save GPU memory
-        if hasattr(pipeline, 'codec_device'):
-            pipeline.codec_device = torch.device('cpu')
-            print("Set HeartMula codec to CPU for memory savings")
 
         print("HeartMula pipeline initialized successfully")
     except Exception as e:
