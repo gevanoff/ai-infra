@@ -169,16 +169,14 @@ async def generate_music(request: MusicGenerationRequest):
 
         # Prepare lyrics and tags
         lyrics = request.lyrics or ""
+        tags = request.tags or "electronic,ambient"
+        if request.style:
+            # Include style in tags for genre conditioning
+            tags = f"{request.style},{tags}"
+
         if request.style and not lyrics:
             # If style provided but no lyrics, use style as lyrics for better conditioning
             lyrics = request.style
-            tags = request.tags or "electronic,ambient"
-        else:
-            tags = request.style or request.tags or "electronic,ambient"
-
-        # Prepend style to lyrics for better conditioning
-        if request.style and lyrics:
-            lyrics = f"Style: {request.style}\n{lyrics}"
 
         # Backward compatibility: if no lyrics but prompt provided, use heuristic
         if not lyrics and request.prompt:
@@ -186,7 +184,7 @@ async def generate_music(request: MusicGenerationRequest):
             if "\n" in prompt or len(prompt.split()) > 20:  # heuristic: if multiline or long, treat as lyrics
                 lyrics = prompt
             else:  # treat as style description, use for tags
-                tags = prompt
+                tags = f"{prompt},{tags}"
 
         # Convert duration to milliseconds, limit for lyrics to save memory
         requested_duration = request.duration or 30
