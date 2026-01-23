@@ -127,12 +127,16 @@ async def startup_event():
 
         print(f"Loading HeartMuLa model from: {model_path} (version={version}, device={device}, dtype={dtype})")
 
+        # Check for lazy loading
+        lazy_load = os.environ.get("HEARTMULA_LAZY_LOAD", "false").lower() in ("true", "1", "yes")
+
         # Use from_pretrained classmethod to load checkpoints from a directory
         pipeline = HeartMuLaGenPipeline.from_pretrained(
             model_path,
             device=device,
             dtype=dtype,
             version=version,
+            lazy_load=lazy_load,
         )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
         pipeline_dtype = str(dtype)
@@ -170,8 +174,7 @@ async def generate_music(request: MusicGenerationRequest):
 
         # Convert duration to milliseconds, limit for lyrics to save memory
         requested_duration = request.duration or 30
-        if lyrics and requested_duration > 30:
-            requested_duration = 30  # Limit duration with lyrics to reduce memory usage
+        # Removed duration limit with lyrics - use lazy_load or monitor memory instead
         max_audio_length_ms = requested_duration * 1000
 
         # Generate output path
@@ -190,7 +193,7 @@ async def generate_music(request: MusicGenerationRequest):
             save_path=str(output_path.with_suffix('.wav')),
         )
 
-        model_inputs = pipeline.preprocess({"tags": tags, "lyrics": lyrics}, **pre_kwargs)
+        model_inputs = pipeline.preprocess({"prompt": lyrics, "tags": tags}, **pre_kwargs)
 
         # Align tensors to the model device/dtype to avoid device mismatch errors.
         device = torch.device(pipeline_device or ("cuda" if torch.cuda.is_available() else "cpu"))
