@@ -165,6 +165,16 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+async def readyz() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/v1/models")
 async def list_models() -> dict[str, Any]:
     model_name = os.getenv("POCKET_TTS_MODEL_NAME", "pocket-tts")
