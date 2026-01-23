@@ -127,16 +127,12 @@ async def startup_event():
 
         print(f"Loading HeartMuLa model from: {model_path} (version={version}, device={device}, dtype={dtype})")
 
-        # Check for lazy loading
-        lazy_load = os.environ.get("HEARTMULA_LAZY_LOAD", "false").lower() in ("true", "1", "yes")
-
         # Use from_pretrained classmethod to load checkpoints from a directory
         pipeline = HeartMuLaGenPipeline.from_pretrained(
             model_path,
             device=device,
             dtype=dtype,
             version=version,
-            lazy_load=lazy_load,
         )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
         pipeline_dtype = str(dtype)
