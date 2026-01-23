@@ -158,6 +158,7 @@ async def startup_event():
 
 @app.post("/v1/music/generations", response_model=MusicGenerationResponse)
 async def generate_music(request: MusicGenerationRequest):
+    global pipeline
     """Generate music using HeartMula"""
     if pipeline is None:
         raise HTTPException(status_code=503, detail="HeartMula pipeline not initialized")
@@ -268,7 +269,6 @@ async def generate_music(request: MusicGenerationRequest):
 
         # Reload pipeline to free any remaining memory
         print("Reloading HeartMula pipeline to free memory...")
-        global pipeline
         del pipeline
         pipeline = None
         gc.collect()
