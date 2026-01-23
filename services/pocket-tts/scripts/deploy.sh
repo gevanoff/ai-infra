@@ -31,14 +31,14 @@ sync_env_file() {
   fi
   sudo mkdir -p "$(dirname "$ENV_FILE")"
   sudo cp "$ENV_TEMPLATE" "$ENV_FILE"
-  sudo chown root:root "$ENV_FILE"
+  sudo chown root:wheel "$ENV_FILE"
   sudo chmod 644 "$ENV_FILE"
   note "Installed env template to ${ENV_FILE}"
 }
 
 sync_shim() {
   sudo cp -f "$SHIM_SRC" "${POCKET_TTS_HOME}/pocket_tts_server.py"
-  sudo chown "${POCKET_TTS_USER}":"${POCKET_TTS_USER}" "${POCKET_TTS_HOME}/pocket_tts_server.py"
+  sudo chown "${POCKET_TTS_USER}":staff "${POCKET_TTS_HOME}/pocket_tts_server.py"
   sudo chmod 644 "${POCKET_TTS_HOME}/pocket_tts_server.py"
 }
 
