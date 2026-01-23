@@ -136,10 +136,15 @@ async def startup_event():
             device=device,
             dtype=dtype,
             version=version,
-            lazy=lazy,
         )  # store detected device/dtype for logging in handlers
         pipeline_device = str(device)
         pipeline_dtype = str(dtype)
+
+        # Enable lazy loading if requested
+        if lazy:
+            pipeline.lazy_load = True
+            print("Enabled lazy loading for HeartMula pipeline")
+
         print("HeartMula pipeline initialized successfully")
     except Exception as e:
         print(f"Failed to initialize HeartMula pipeline: {e}")
