@@ -198,7 +198,7 @@ async def generate_music(request: MusicGenerationRequest):
             save_path=str(output_path.with_suffix('.wav')),
         )
 
-        model_inputs = pipeline.preprocess({"prompt": lyrics, "tags": tags}, **pre_kwargs)
+        model_inputs = pipeline.preprocess({"lyrics": lyrics, "tags": tags}, **pre_kwargs)
 
         # Align tensors to the model device/dtype to avoid device mismatch errors.
         device = torch.device(pipeline_device or ("cuda" if torch.cuda.is_available() else "cpu"))
