@@ -189,6 +189,10 @@ async def generate_music(request: MusicGenerationRequest):
         print(f"Generating music: {lyrics[:50]}... (duration: {request.duration}s)")
         print(f"Pipeline device={pipeline_device}, dtype={pipeline_dtype}")
 
+        # Clear CUDA cache before generation to free memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         # Generate music using pipeline internals (preprocess -> forward -> postprocess)
         pre_kwargs, forward_kwargs, post_kwargs = pipeline._sanitize_parameters(
             cfg_scale=1.5,
