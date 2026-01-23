@@ -122,10 +122,22 @@ if [[ "$OS" == "Darwin" ]]; then
 
   sudo mkdir -p "${POCKET_TTS_HOME}" "${POCKET_TTS_HOME}/cache" "${POCKET_TTS_HOME}/tmp" /var/log/pocket-tts
 
+  # Create the user if it doesn't exist
   if ! id -u "${POCKET_TTS_USER}" >/dev/null 2>&1; then
-    echo "ERROR: user '${POCKET_TTS_USER}' does not exist on this machine" >&2
-    echo "Hint: create it (or set POCKET_TTS_USER / update the plist UserName and chown targets)." >&2
-    exit 1
+    note "Creating system user '${POCKET_TTS_USER}'..."
+    # Find the next available UID (starting from 501 for system users)
+    local next_uid=501
+    while id -u "$next_uid" >/dev/null 2>&1; do
+      ((next_uid++))
+    done
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}"
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}" UserShell /bin/bash
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}" RealName "Pocket TTS Service User"
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}" UniqueID "$next_uid"
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}" PrimaryGroupID 20  # staff group
+    sudo dscl . -create /Users/"${POCKET_TTS_USER}" NFSHomeDirectory "${POCKET_TTS_HOME}"
+    sudo dscl . -passwd /Users/"${POCKET_TTS_USER}" "*"  # Set no password
+    sudo createhomedir -u "${POCKET_TTS_USER}" -c 2>/dev/null || true
   fi
 
   sudo chown -R "${POCKET_TTS_USER}":staff "${POCKET_TTS_HOME}" /var/log/pocket-tts
