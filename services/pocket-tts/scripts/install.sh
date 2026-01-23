@@ -136,7 +136,7 @@ if [[ "$OS" == "Darwin" ]]; then
     sudo dscl . -create /Users/"${POCKET_TTS_USER}" UniqueID "$next_uid"
     sudo dscl . -create /Users/"${POCKET_TTS_USER}" PrimaryGroupID 20  # staff group
     sudo dscl . -create /Users/"${POCKET_TTS_USER}" NFSHomeDirectory "${POCKET_TTS_HOME}"
-    sudo dscl . -passwd /Users/"${POCKET_TTS_USER}" "*"  # Set no password
+    # Note: Skipping password setup for system user
     sudo createhomedir -u "${POCKET_TTS_USER}" -c 2>/dev/null || true
   fi
 
