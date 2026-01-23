@@ -22,10 +22,10 @@ app = FastAPI(title="Pocket TTS")
 
 
 class SpeechRequest(BaseModel):
-    input: str = Field(..., min_length=1)
+    input: str = Field(default=..., min_length=1)
     model: Optional[str] = None
     voice: Optional[str] = None
-    response_format: str = Field("wav", regex="^(wav|mp3)$")
+    response_format: str = Field(default="wav", pattern=r"^(wav|mp3)$")
 
 
 class PocketTTSBackend:
