@@ -30,9 +30,7 @@ class SpeechRequest(BaseModel):
 
 class PocketTTSBackend:
     def __init__(self) -> None:
-        print(f"DEBUG: POCKET_TTS_BACKEND env: {os.getenv('POCKET_TTS_BACKEND')}")
         self.backend = os.getenv("POCKET_TTS_BACKEND", "auto")
-        print(f"DEBUG: self.backend: {self.backend}")
         self.command = os.getenv("POCKET_TTS_COMMAND", "pocket-tts")
         self.command_args = shlex.split(os.getenv("POCKET_TTS_COMMAND_ARGS", ""))
         self.text_arg = os.getenv("POCKET_TTS_COMMAND_TEXT_ARG", "--text")
@@ -98,20 +96,15 @@ class PocketTTSBackend:
             if response_format != "wav":
                 raise RuntimeError(f"TTSModel API only supports wav format, got {response_format}")
             try:
-                print(f"DEBUG: Getting state for voice: {voice}")
                 voice_state = backend.get_state_for_audio_prompt(voice)
-                print("DEBUG: Got voice state")
                 audio_tensor = backend.generate_audio(voice_state, text)
-                print(f"DEBUG: Generated tensor shape: {audio_tensor.shape}, dtype: {audio_tensor.dtype}, sample_rate: {backend.sample_rate}")
                 # Convert torch tensor to wav bytes
                 import numpy as np
                 import wave
                 import io
                 audio_np = audio_tensor.detach().cpu().numpy()
-                print(f"DEBUG: audio_np shape: {audio_np.shape}, dtype: {audio_np.dtype}, min: {audio_np.min()}, max: {audio_np.max()}")
                 # Scale float32 [-1, 1] to int16
                 audio_int16 = (audio_np * 32767).astype(np.int16)
-                print(f"DEBUG: audio_int16 shape: {audio_int16.shape}, dtype: {audio_int16.dtype}, min: {audio_int16.min()}, max: {audio_int16.max()}")
                 # Assume 16-bit PCM, mono
                 buffer = io.BytesIO()
                 with wave.open(buffer, 'wb') as wav_file:
@@ -119,10 +112,8 @@ class PocketTTSBackend:
                     wav_file.setsampwidth(2)
                     wav_file.setframerate(backend.sample_rate)
                     wav_file.writeframes(audio_int16.tobytes())
-                print("DEBUG: WAV created successfully")
                 return buffer.getvalue()
             except Exception as e:
-                print(f"DEBUG: Error in TTSModel API: {e}")
                 raise RuntimeError(f"TTSModel API failed: {e}")
 
         # Fallback to generic API
@@ -204,30 +195,21 @@ class PocketTTSBackend:
 
     def synthesize(self, text: str, voice: str, response_format: str) -> bytes:
         backend_pref = self.backend.lower()
-        print(f"DEBUG: backend_pref: {backend_pref}")
         if backend_pref not in {"auto", "python", "command"}:
             raise RuntimeError(f"Unsupported POCKET_TTS_BACKEND={self.backend}")
 
         if backend_pref == "python":
-            print("DEBUG: backend_pref is python")
             if not self._ensure_python_backend():
-                print("DEBUG: _ensure_python_backend returned False")
                 raise RuntimeError("POCKET_TTS_BACKEND=python but pocket_tts import failed")
-            print("DEBUG: calling _python_synthesize")
             return self._python_synthesize(text, voice, response_format)
         elif backend_pref == "command":
-            print("DEBUG: backend_pref is command")
             return self._command_synthesize(text, voice, response_format)
         else:  # auto
-            print("DEBUG: backend_pref is auto")
             if self._ensure_python_backend():
-                print("DEBUG: auto trying python")
                 try:
                     return self._python_synthesize(text, voice, response_format)
                 except RuntimeError:
-                    print("DEBUG: python failed, falling to command")
                     pass  # fall back to command
-            print("DEBUG: auto using command")
             return self._command_synthesize(text, voice, response_format)
 
 
