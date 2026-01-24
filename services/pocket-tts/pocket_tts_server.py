@@ -148,13 +148,19 @@ class PocketTTSBackend:
         if backend_pref not in {"auto", "python", "command"}:
             raise RuntimeError(f"Unsupported POCKET_TTS_BACKEND={self.backend}")
 
-        if backend_pref in {"auto", "python"}:
-            if self._ensure_python_backend():
-                return self._python_synthesize(text, voice, response_format)
-            if backend_pref == "python":
+        if backend_pref == "python":
+            if not self._ensure_python_backend():
                 raise RuntimeError("POCKET_TTS_BACKEND=python but pocket_tts import failed")
-
-        return self._command_synthesize(text, voice, response_format)
+            return self._python_synthesize(text, voice, response_format)
+        elif backend_pref == "command":
+            return self._command_synthesize(text, voice, response_format)
+        else:  # auto
+            if self._ensure_python_backend():
+                try:
+                    return self._python_synthesize(text, voice, response_format)
+                except RuntimeError:
+                    pass  # fall back to command
+            return self._command_synthesize(text, voice, response_format)
 
 
 backend = PocketTTSBackend()
