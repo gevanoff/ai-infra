@@ -103,13 +103,15 @@ class PocketTTSBackend:
                 import wave
                 import io
                 audio_np = audio_tensor.detach().cpu().numpy()
+                # Scale float32 [-1, 1] to int16
+                audio_int16 = (audio_np * 32767).astype(np.int16)
                 # Assume 16-bit PCM, mono
                 buffer = io.BytesIO()
                 with wave.open(buffer, 'wb') as wav_file:
                     wav_file.setnchannels(1)
                     wav_file.setsampwidth(2)
                     wav_file.setframerate(backend.sample_rate)
-                    wav_file.writeframes(audio_np.astype(np.int16).tobytes())
+                    wav_file.writeframes(audio_int16.tobytes())
                 return buffer.getvalue()
             except Exception as e:
                 raise RuntimeError(f"TTSModel API failed: {e}")
