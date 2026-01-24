@@ -49,6 +49,14 @@ class PocketTTSBackend:
         except Exception:
             return False
 
+        # Check for TTSModel API
+        if hasattr(pocket_tts, "TTSModel"):
+            try:
+                self._python_backend = pocket_tts.TTSModel.load_model()
+                return True
+            except Exception:
+                pass  # Fall through to generic API
+
         candidate = None
         if hasattr(pocket_tts, "PocketTTS"):
             candidate = pocket_tts.PocketTTS
@@ -83,6 +91,30 @@ class PocketTTSBackend:
         if backend is None:
             raise RuntimeError("python backend not loaded")
 
+        # Check for TTSModel API
+        if hasattr(backend, "generate_audio") and hasattr(backend, "get_state_for_audio_prompt"):
+            if response_format != "wav":
+                raise RuntimeError(f"TTSModel API only supports wav format, got {response_format}")
+            try:
+                voice_state = backend.get_state_for_audio_prompt(voice)
+                audio_tensor = backend.generate_audio(voice_state, text)
+                # Convert torch tensor to wav bytes
+                import numpy as np
+                import wave
+                import io
+                audio_np = audio_tensor.detach().cpu().numpy()
+                # Assume 16-bit PCM, mono
+                buffer = io.BytesIO()
+                with wave.open(buffer, 'wb') as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(2)
+                    wav_file.setframerate(backend.sample_rate)
+                    wav_file.writeframes(audio_np.astype(np.int16).tobytes())
+                return buffer.getvalue()
+            except Exception as e:
+                raise RuntimeError(f"TTSModel API failed: {e}")
+
+        # Fallback to generic API
         for method_name in ("synthesize", "tts", "generate", "speak", "convert", "to_audio", "audio", "process", "create_audio", "__call__"):
             if hasattr(backend, method_name):
                 method = getattr(backend, method_name)
