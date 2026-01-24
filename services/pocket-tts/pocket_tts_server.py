@@ -96,15 +96,20 @@ class PocketTTSBackend:
             if response_format != "wav":
                 raise RuntimeError(f"TTSModel API only supports wav format, got {response_format}")
             try:
+                print(f"DEBUG: Getting state for voice: {voice}")
                 voice_state = backend.get_state_for_audio_prompt(voice)
+                print("DEBUG: Got voice state")
                 audio_tensor = backend.generate_audio(voice_state, text)
+                print(f"DEBUG: Generated tensor shape: {audio_tensor.shape}, dtype: {audio_tensor.dtype}, sample_rate: {backend.sample_rate}")
                 # Convert torch tensor to wav bytes
                 import numpy as np
                 import wave
                 import io
                 audio_np = audio_tensor.detach().cpu().numpy()
+                print(f"DEBUG: audio_np shape: {audio_np.shape}, dtype: {audio_np.dtype}, min: {audio_np.min()}, max: {audio_np.max()}")
                 # Scale float32 [-1, 1] to int16
                 audio_int16 = (audio_np * 32767).astype(np.int16)
+                print(f"DEBUG: audio_int16 shape: {audio_int16.shape}, dtype: {audio_int16.dtype}, min: {audio_int16.min()}, max: {audio_int16.max()}")
                 # Assume 16-bit PCM, mono
                 buffer = io.BytesIO()
                 with wave.open(buffer, 'wb') as wav_file:
@@ -112,8 +117,10 @@ class PocketTTSBackend:
                     wav_file.setsampwidth(2)
                     wav_file.setframerate(backend.sample_rate)
                     wav_file.writeframes(audio_int16.tobytes())
+                print("DEBUG: WAV created successfully")
                 return buffer.getvalue()
             except Exception as e:
+                print(f"DEBUG: Error in TTSModel API: {e}")
                 raise RuntimeError(f"TTSModel API failed: {e}")
 
         # Fallback to generic API
