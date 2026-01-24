@@ -30,7 +30,9 @@ class SpeechRequest(BaseModel):
 
 class PocketTTSBackend:
     def __init__(self) -> None:
+        print(f"DEBUG: POCKET_TTS_BACKEND env: {os.getenv('POCKET_TTS_BACKEND')}")
         self.backend = os.getenv("POCKET_TTS_BACKEND", "auto")
+        print(f"DEBUG: self.backend: {self.backend}")
         self.command = os.getenv("POCKET_TTS_COMMAND", "pocket-tts")
         self.command_args = shlex.split(os.getenv("POCKET_TTS_COMMAND_ARGS", ""))
         self.text_arg = os.getenv("POCKET_TTS_COMMAND_TEXT_ARG", "--text")
@@ -202,21 +204,30 @@ class PocketTTSBackend:
 
     def synthesize(self, text: str, voice: str, response_format: str) -> bytes:
         backend_pref = self.backend.lower()
+        print(f"DEBUG: backend_pref: {backend_pref}")
         if backend_pref not in {"auto", "python", "command"}:
             raise RuntimeError(f"Unsupported POCKET_TTS_BACKEND={self.backend}")
 
         if backend_pref == "python":
+            print("DEBUG: backend_pref is python")
             if not self._ensure_python_backend():
+                print("DEBUG: _ensure_python_backend returned False")
                 raise RuntimeError("POCKET_TTS_BACKEND=python but pocket_tts import failed")
+            print("DEBUG: calling _python_synthesize")
             return self._python_synthesize(text, voice, response_format)
         elif backend_pref == "command":
+            print("DEBUG: backend_pref is command")
             return self._command_synthesize(text, voice, response_format)
         else:  # auto
+            print("DEBUG: backend_pref is auto")
             if self._ensure_python_backend():
+                print("DEBUG: auto trying python")
                 try:
                     return self._python_synthesize(text, voice, response_format)
                 except RuntimeError:
+                    print("DEBUG: python failed, falling to command")
                     pass  # fall back to command
+            print("DEBUG: auto using command")
             return self._command_synthesize(text, voice, response_format)
 
 
