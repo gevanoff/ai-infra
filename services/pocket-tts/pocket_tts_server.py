@@ -83,32 +83,48 @@ class PocketTTSBackend:
         if backend is None:
             raise RuntimeError("python backend not loaded")
 
-        for method_name in ("synthesize", "tts", "generate", "__call__"):
+        for method_name in ("synthesize", "tts", "generate", "speak", "convert", "to_audio", "audio", "process", "create_audio", "__call__"):
             if hasattr(backend, method_name):
                 method = getattr(backend, method_name)
-                try:
-                    result = method(
-                        text=text,
-                        voice=voice,
-                        model_path=self.model_path or None,
-                        sample_rate=self.sample_rate,
-                        response_format=response_format,
-                    )
-                except TypeError:
+                # Try different argument combinations
+                arg_sets = [
+                    (text,),  # simplest
+                    (text, voice),  # text and voice
+                    {"text": text, "voice": voice},  # kwargs
+                    {"text": text, "voice": voice, "format": response_format},  # with format
+                    {"text": text, "voice": voice, "model_path": self.model_path or None, "sample_rate": self.sample_rate, "response_format": response_format},  # full
+                ]
+                for args in arg_sets:
                     try:
-                        result = method(text, voice=voice)
-                    except TypeError:
-                        result = method(text)
-
-                if isinstance(result, bytes):
-                    return result
-                if isinstance(result, tuple) and result:
-                    maybe_audio = result[0]
-                    if isinstance(maybe_audio, bytes):
-                        return maybe_audio
-                if isinstance(result, str):
-                    # Treat as file path
-                    return Path(result).read_bytes()
+                        if isinstance(args, dict):
+                            result = method(**args)
+                        else:
+                            result = method(*args)
+                        # Check various result types
+                        if isinstance(result, bytes):
+                            return result
+                        if isinstance(result, tuple) and result:
+                            maybe_audio = result[0]
+                            if isinstance(maybe_audio, bytes):
+                                return maybe_audio
+                        if isinstance(result, str):
+                            # Treat as file path
+                            return Path(result).read_bytes()
+                        if isinstance(result, dict):
+                            for key in ("audio", "data", "output", "result"):
+                                if key in result and isinstance(result[key], bytes):
+                                    return result[key]
+                                if key in result and isinstance(result[key], str):
+                                    return Path(result[key]).read_bytes()
+                        # Check for object with audio attribute
+                        if hasattr(result, "audio") and isinstance(result.audio, bytes):
+                            return result.audio
+                        if hasattr(result, "data") and isinstance(result.data, bytes):
+                            return result.data
+                        if hasattr(result, "output") and isinstance(result.output, bytes):
+                            return result.output
+                    except (TypeError, AttributeError, KeyError):
+                        continue
         raise RuntimeError("python backend did not expose a compatible synthesize method")
 
     def _command_synthesize(self, text: str, voice: str, response_format: str) -> bytes:
