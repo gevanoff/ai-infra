@@ -39,7 +39,7 @@ class PocketTTSBackend:
         self.voice_arg = os.getenv("POCKET_TTS_COMMAND_VOICE_ARG", "--voice")
         self.format_arg = os.getenv("POCKET_TTS_COMMAND_FORMAT_ARG", "")
         self.model_path = os.getenv("POCKET_TTS_MODEL_PATH", "")
-        self.default_voice = os.getenv("POCKET_TTS_VOICE", "default")
+        self.default_voice = os.getenv("POCKET_TTS_VOICE", "alba")
         self.sample_rate = int(os.getenv("POCKET_TTS_SAMPLE_RATE", "22050"))
         self._python_backend: Optional[Any] = None
 
