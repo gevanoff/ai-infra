@@ -148,7 +148,7 @@ if [[ "$OS" == "Darwin" ]]; then
   fi
 
   sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-  sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install pocket-tts fastapi "uvicorn[standard]" pydantic
+  sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install git+https://github.com/kyutai/pocket-tts.git fastapi "uvicorn[standard]" pydantic
 
   install_env_file
   install_shim
@@ -201,7 +201,7 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 
     sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-    sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install pocket-tts fastapi "uvicorn[standard]" pydantic
+    sudo -u "${POCKET_TTS_USER}" -H "$VENV_PATH/bin/pip" install git+https://github.com/kyutai/pocket-tts.git fastapi "uvicorn[standard]" pydantic
 
     install_env_file
     install_shim
