@@ -227,6 +227,13 @@ sudo rsync -a --delete \
   --exclude 'cache/' --exclude 'models/' --exclude 'huggingface/' --exclude 'hf_cache/' \
   "${SRC_DIR}/" "${APP_DIR}/"
 
+# Explicitly ensure critical app files are copied (rsync may have excludes or issues)
+sudo cp -f "${SRC_DIR}/app/tts_routes.py" "${APP_DIR}/app/tts_routes.py" || echo "WARNING: failed to copy tts_routes.py" >&2
+sudo cp -f "${SRC_DIR}/app/tts_backend.py" "${APP_DIR}/app/tts_backend.py" || echo "WARNING: failed to copy tts_backend.py" >&2
+sudo cp -f "${SRC_DIR}/app/backends.py" "${APP_DIR}/app/backends.py" || echo "WARNING: failed to copy backends.py" >&2
+sudo cp -f "${SRC_DIR}/app/health_checker.py" "${APP_DIR}/app/health_checker.py" || echo "WARNING: failed to copy health_checker.py" >&2
+sudo cp -f "${SRC_DIR}/app/model_aliases.py" "${APP_DIR}/app/model_aliases.py" || echo "WARNING: failed to copy model_aliases.py" >&2
+
 # The gateway reads required settings from /var/lib/gateway/app/.env.
 # We exclude .env from rsync, so preserve it but ensure it is readable by the service user.
 ENV_DST="${APP_DIR}/.env"
