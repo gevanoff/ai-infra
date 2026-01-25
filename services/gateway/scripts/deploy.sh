@@ -228,11 +228,55 @@ sudo rsync -a --delete \
   "${SRC_DIR}/" "${APP_DIR}/"
 
 # Explicitly ensure critical app files are copied (rsync may have excludes or issues)
-sudo cp -f "${SRC_DIR}/app/tts_routes.py" "${APP_DIR}/app/tts_routes.py" || echo "WARNING: failed to copy tts_routes.py" >&2
-sudo cp -f "${SRC_DIR}/app/tts_backend.py" "${APP_DIR}/app/tts_backend.py" || echo "WARNING: failed to copy tts_backend.py" >&2
-sudo cp -f "${SRC_DIR}/app/backends.py" "${APP_DIR}/app/backends.py" || echo "WARNING: failed to copy backends.py" >&2
-sudo cp -f "${SRC_DIR}/app/health_checker.py" "${APP_DIR}/app/health_checker.py" || echo "WARNING: failed to copy health_checker.py" >&2
-sudo cp -f "${SRC_DIR}/app/model_aliases.py" "${APP_DIR}/app/model_aliases.py" || echo "WARNING: failed to copy model_aliases.py" >&2
+MISSING_FILES=0
+CRITICAL_FILES=(
+  "app/tts_routes.py"
+  "app/tts_backend.py"
+  "app/backends.py"
+  "app/health_checker.py"
+  "app/model_aliases.py"
+  "app/ui_routes.py"
+)
+for f in "${CRITICAL_FILES[@]}"; do
+  SRCF="${SRC_DIR}/${f}"
+  DSTF="${APP_DIR}/${f}"
+  if [[ -f "${SRCF}" ]]; then
+    sudo mkdir -p "$(dirname "${DSTF}")"
+    if sudo cp -f "${SRCF}" "${DSTF}"; then
+      sudo chown gateway:staff "${DSTF}" || true
+      sudo chmod 644 "${DSTF}" || true
+    else
+      echo "WARNING: failed to copy ${f}" >&2
+      MISSING_FILES=1
+    fi
+  else
+    echo "WARNING: source missing, not deployed: ${f}" >&2
+    MISSING_FILES=1
+  fi
+done
+if [[ "${MISSING_FILES}" -eq 1 ]]; then
+  echo "ERROR: One or more critical files failed to copy. See warnings above." >&2
+  echo "---- missing critical files in deployed tree ----" >&2
+  for f in "${CRITICAL_FILES[@]}"; do
+    if [[ ! -f "${APP_DIR}/${f}" ]]; then
+      echo "${APP_DIR}/${f}" >&2
+    fi
+  done
+  exit 1
+fi
+
+# Validate Python syntax for deployed modules (best-effort; fail deploy if syntax errors present)
+PY_BAD=0
+while IFS= read -r -d '' pyfile; do
+  if ! sudo -H -u gateway "${PYTHON_BIN}" -m py_compile "${pyfile}" >/dev/null 2>&1; then
+    echo "ERROR: python compile failed for ${pyfile}" >&2
+    PY_BAD=1
+  fi
+done < <(find "${APP_DIR}/app" -name '*.py' -print0)
+if [[ "${PY_BAD}" -eq 1 ]]; then
+  echo "ERROR: python syntax check failed" >&2
+  exit 1
+fi
 
 # The gateway reads required settings from /var/lib/gateway/app/.env.
 # We exclude .env from rsync, so preserve it but ensure it is readable by the service user.
