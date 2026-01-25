@@ -132,6 +132,10 @@ if [[ -z "${SRC_DIR}" ]]; then
   exit 1
 fi
 
+echo "AI_INFRA_ROOT: ${AI_INFRA_ROOT}"
+echo "GATEWAY_SRC_DIR: ${GATEWAY_SRC_DIR}"
+echo "Resolved Source: ${SRC_DIR}"
+
 RUNTIME_ROOT="/var/lib/gateway"
 APP_DIR="${RUNTIME_ROOT}/app"
 TOOLS_DIR="${RUNTIME_ROOT}/tools"
