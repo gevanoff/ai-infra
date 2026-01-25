@@ -94,16 +94,23 @@ fi
 # ---- config (edit if your labels/paths differ) ----
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVICE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"  # ai-infra/services/gateway
-AI_INFRA_ROOT="$(cd "${SERVICE_DIR}/../.." && pwd)"  # ai-infra
+# Default AI_INFRA_ROOT to $HOME/ai/ai-infra unless overridden in environment. If that
+# path doesn't exist, fall back to the script-relative location for backward
+# compatibility.
+AI_INFRA_ROOT="${AI_INFRA_ROOT:-${HOME}/ai/ai-infra}"
+if [[ ! -d "${AI_INFRA_ROOT}" ]]; then
+  AI_INFRA_ROOT="$(cd "${SERVICE_DIR}/../.." && pwd)"  # ai-infra (fallback)
+fi
 
 # Where to deploy FROM (the gateway app source tree)
-# - Preferred: set GATEWAY_SRC_DIR to your local gateway checkout
-# - Default:   sibling checkout next to ai-infra (../gateway)
-GATEWAY_SRC_DIR="${GATEWAY_SRC_DIR:-}"
+# - Preferred: set GATEWAY_SRC_DIR to your local gateway checkout (env override)
+# - Default:   $HOME/ai/gateway (common layout on ai hosts)
+GATEWAY_SRC_DIR="${GATEWAY_SRC_DIR:-${HOME}/ai/gateway}"
 
 SRC_DIR=""
 for cand in \
   "${GATEWAY_SRC_DIR}" \
+  "${AI_INFRA_ROOT}/gateway" \
   "${AI_INFRA_ROOT}/../gateway" \
   "${AI_INFRA_ROOT}/../../gateway" \
 ; do
@@ -118,10 +125,10 @@ if [[ -z "${SRC_DIR}" ]]; then
   echo "ERROR: Could not find gateway source tree (missing app/main.py)." >&2
   echo "Tried:" >&2
   echo "  - GATEWAY_SRC_DIR=${GATEWAY_SRC_DIR:-\"\"}" >&2
+  echo "  - ${AI_INFRA_ROOT}/gateway" >&2
   echo "  - ${AI_INFRA_ROOT}/../gateway" >&2
   echo "  - ${AI_INFRA_ROOT}/../../gateway" >&2
-  echo "Hint: clone the gateway repo next to ai-infra (../gateway)," >&2
-  echo "      or export GATEWAY_SRC_DIR=/path/to/your/gateway checkout." >&2
+  echo "Hint: clone the gateway repo under \\$HOME/ai/gateway or export GATEWAY_SRC_DIR=/path/to/your/gateway." >&2
   exit 1
 fi
 

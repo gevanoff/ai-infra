@@ -75,11 +75,16 @@ else
   # Fallback: run from a gateway repo checkout if present next to ai-infra.
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   SERVICE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"          # ai-infra/services/gateway
-  AI_INFRA_ROOT="$(cd "${SERVICE_DIR}/../.." && pwd)"     # ai-infra
+  # Default AI_INFRA_ROOT to $HOME/ai/ai-infra unless overridden; fall back to script-relative.
+  AI_INFRA_ROOT="${AI_INFRA_ROOT:-${HOME}/ai/ai-infra}"
+  if [[ ! -d "${AI_INFRA_ROOT}" ]]; then
+    AI_INFRA_ROOT="$(cd "${SERVICE_DIR}/../.." && pwd)"     # ai-infra (fallback)
+  fi
 
   SRC_DIR=""
   for cand in \
-    "${GATEWAY_SRC_DIR:-}" \
+    "${GATEWAY_SRC_DIR:-${HOME}/ai/gateway}" \
+    "${AI_INFRA_ROOT}/gateway" \
     "${AI_INFRA_ROOT}/../gateway" \
     "${AI_INFRA_ROOT}/../../gateway" \
   ; do
