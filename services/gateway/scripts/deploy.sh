@@ -276,11 +276,41 @@ if [[ "${MISSING_FILES}" -eq 1 ]]; then
   exit 1
 fi
 
+# ---- permissions ----
+sudo chown -R gateway:staff "${APP_DIR}"
+sudo chmod -R u+rwX,g+rX,o-rwx "${APP_DIR}"
+
 # Validate Python syntax for deployed modules (best-effort; fail deploy if syntax errors present)
 PY_BAD=0
+PY_VERSION=""
+if PY_VERSION="$(sudo -H -u gateway "${PYTHON_BIN}" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null)"; then
+  echo "Gateway python: ${PY_VERSION}"
+else
+  echo "ERROR: unable to run ${PYTHON_BIN} as gateway user." >&2
+  echo "Hint: check permissions on ${RUNTIME_ROOT}/env and the gateway user." >&2
+  exit 1
+fi
+
+PY_MAJOR="${PY_VERSION%%.*}"
+PY_MINOR="${PY_VERSION#*.}"
+PY_MINOR="${PY_MINOR%%.*}"
+if [[ -n "${PY_MAJOR}" && -n "${PY_MINOR}" ]]; then
+  if [[ "${PY_MAJOR}" -lt 3 || ( "${PY_MAJOR}" -eq 3 && "${PY_MINOR}" -lt 10 ) ]]; then
+    echo "ERROR: gateway requires Python >= 3.10; found ${PY_VERSION} at ${PYTHON_BIN}." >&2
+    echo "Hint: rerun services/gateway/scripts/install.sh --recreate-venv to rebuild with python3.12." >&2
+    exit 1
+  fi
+fi
+
 while IFS= read -r -d '' pyfile; do
-  if ! sudo -H -u gateway "${PYTHON_BIN}" -m py_compile "${pyfile}" >/dev/null 2>&1; then
+  PY_ERR=""
+  if ! PY_ERR="$(sudo -H -u gateway env PYTHONDONTWRITEBYTECODE=1 "${PYTHON_BIN}" -m py_compile "${pyfile}" 2>&1 >/dev/null)"; then
     echo "ERROR: python compile failed for ${pyfile}" >&2
+    if [[ -n "${PY_ERR}" ]]; then
+      echo "---- python error ----" >&2
+      echo "${PY_ERR}" >&2
+      echo "----------------------" >&2
+    fi
     PY_BAD=1
   fi
 done < <(find "${APP_DIR}/app" -name '*.py' -print0)
@@ -401,10 +431,6 @@ if [[ ! -f "${APP_DIR}/app/main.py" ]]; then
   echo "Hint: check rsync excludes and that ${SRC_DIR}/app/main.py exists." >&2
   exit 1
 fi
-
-# ---- permissions ----
-sudo chown -R gateway:staff "${APP_DIR}"
-sudo chmod -R u+rwX,g+rX,o-rwx "${APP_DIR}"
 
 # ---- restart service ----
 # kickstart alone is fine if it is already bootstrapped; bootstrap if missing.
