@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 
 app = FastAPI(title="VibeVoice-ASR Shim", version="0.1")
@@ -113,6 +113,13 @@ async def transcriptions(
             resp = await client.post(f"{upstream}{_upstream_endpoint()}", data=data, files=files)
             if resp.status_code >= 400:
                 raise HTTPException(status_code=resp.status_code, detail=resp.text)
+            
+            # Handle non-JSON response formats (text, srt, vtt)
+            # OpenAI Whisper API returns plain text for these formats
+            if response_format in ("text", "srt", "vtt"):
+                return PlainTextResponse(content=resp.text, media_type="text/plain")
+            
+            # Default to JSON for json, verbose_json, or unspecified format
             return resp.json()
 
     cmd = _run_command()
