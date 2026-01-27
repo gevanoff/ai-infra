@@ -127,7 +127,9 @@ async def transcriptions(
         workdir = Path(tmpdir)
         # Sanitize filename to prevent path traversal attacks
         safe_filename = Path(file.filename).name if file.filename else ""
-        safe_filename = safe_filename or "audio"
+        # Handle edge cases: empty string, ".", ".."
+        if not safe_filename or safe_filename in (".", ".."):
+            safe_filename = "audio"
         input_path = workdir / safe_filename
         input_path.write_bytes(await file.read())
         output_json_path = workdir / "output.json"
