@@ -1,0 +1,17 @@
+[Unit]
+Description=PersonaPlex FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=personaplex
+Group=personaplex
+WorkingDirectory=/var/lib/personaplex
+EnvironmentFile=/etc/personaplex/personaplex.env
+ExecStart=/var/lib/personaplex/venv/bin/uvicorn personaplex_server:app --host ${PERSONAPLEX_HOST} --port ${PERSONAPLEX_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

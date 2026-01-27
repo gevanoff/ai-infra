@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.lighton-ocr.server</string>
+
+    <key>UserName</key><string>lightonocr</string>
+    <key>WorkingDirectory</key><string>/var/lib/lighton-ocr</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/lighton-ocr/lighton-ocr.env 2&gt;/dev/null || true; exec /var/lib/lighton-ocr/venv/bin/uvicorn lighton_ocr_server:app --host "${LIGHTON_OCR_HOST:-127.0.0.1}" --port "${LIGHTON_OCR_PORT:-9155}"</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/lighton-ocr</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/lighton-ocr/lighton-ocr.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/lighton-ocr/lighton-ocr.err.log</string>
+  </dict>
+</plist>

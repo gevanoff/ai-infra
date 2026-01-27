@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.vibevoice-asr.server</string>
+
+    <key>UserName</key><string>vibevoice</string>
+    <key>WorkingDirectory</key><string>/var/lib/vibevoice-asr</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/vibevoice-asr/vibevoice-asr.env 2&gt;/dev/null || true; exec /var/lib/vibevoice-asr/venv/bin/uvicorn vibevoice_asr_server:app --host "${VIBEVOICE_ASR_HOST:-127.0.0.1}" --port "${VIBEVOICE_ASR_PORT:-9180}"</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/vibevoice-asr</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/vibevoice-asr/vibevoice-asr.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/vibevoice-asr/vibevoice-asr.err.log</string>
+  </dict>
+</plist>
