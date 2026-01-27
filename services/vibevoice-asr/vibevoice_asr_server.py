@@ -126,7 +126,8 @@ async def transcriptions(
     with tempfile.TemporaryDirectory(prefix="vibevoice-asr-") as tmpdir:
         workdir = Path(tmpdir)
         # Sanitize filename to prevent path traversal attacks
-        safe_filename = Path(file.filename).name if file.filename else "audio"
+        safe_filename = Path(file.filename).name if file.filename else ""
+        safe_filename = safe_filename or "audio"
         input_path = workdir / safe_filename
         input_path.write_bytes(await file.read())
         output_json_path = workdir / "output.json"
