@@ -215,6 +215,7 @@ fi
 # ---- ensure runtime layout expected by app ----
 # main.py reads env from /var/lib/gateway/app/.env, uses /var/lib/gateway/tools, and writes /var/lib/gateway/data/memory.sqlite
 sudo mkdir -p "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
+sudo chown -R gateway:staff "${RUNTIME_ROOT}"
 sudo chown -R gateway:staff "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
 sudo chmod -R u+rwX,g+rX,o-rwx "${RUNTIME_ROOT}/data" "${TOOLS_DIR}"
 
