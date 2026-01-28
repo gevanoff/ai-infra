@@ -349,32 +349,6 @@ Example template:
 
 ## Telegram bot (OpenAI-style gateway client)
 
-`services/gateway/tools/telegram_gateway_bot.js` is a simple Telegram bot that talks to the gateway using the OpenAI-style chat completions API. It keeps per-chat history in memory so it behaves like the Chat UI.
+A Telegram bot service is available that provides a chat interface to the Gateway using the OpenAI-style chat completions API. It maintains per-chat conversation history and runs as a systemd-managed service with automatic monitoring and restart.
 
-Setup:
-
-1. Install dependencies:
-
-   ```bash
-   npm install node-telegram-bot-api axios
-   ```
-
-2. Export env vars and run:
-
-   ```bash
-   export TELEGRAM_TOKEN=...
-   export GATEWAY_BEARER_TOKEN=...
-   export GATEWAY_URL=http://127.0.0.1:8800/v1/chat/completions
-   export GATEWAY_MODEL=auto
-   node services/gateway/tools/telegram_gateway_bot.js
-   ```
-
-Optional env vars:
-
-- `SYSTEM_PROMPT`: prepends a system message per chat.
-- `MAX_HISTORY`: number of user/assistant message pairs to keep (default: 20).
-- `GATEWAY_URL`: override the gateway base URL.
-
-Commands:
-
-- `/reset`: clear the in-memory conversation for that chat.
+See `services/telegram-bot/README.md` for installation and usage instructions.
