@@ -59,8 +59,8 @@ install_python_deps() {
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install "$torch_pkg"
   fi
 
-  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install \
-    fastapi "uvicorn[standard]" diffusers "transformers>=4.37.0" accelerate safetensors pillow sentencepiece protobuf
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -U \
+    fastapi "uvicorn[standard]" "diffusers>=0.27.2" "transformers>=4.40.2" accelerate safetensors pillow sentencepiece protobuf
 
   if [[ -n "${SDXL_TURBO_PIP_EXTRA:-}" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${SDXL_TURBO_PIP_EXTRA}
