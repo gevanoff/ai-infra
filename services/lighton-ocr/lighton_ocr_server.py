@@ -183,15 +183,15 @@ async def ocr(payload: Dict[str, Any]) -> Any:
                 detail={
                     "error": "lighton-ocr subprocess failed",
                     "returncode": proc.returncode,
-                    "stdout": (stdout_bytes or b\"\").decode(errors=\"ignore\")[-4000:],
-                    "stderr": (stderr_bytes or b\"\").decode(errors=\"ignore\")[-4000:],
+                    "stdout": (stdout_bytes or b"").decode(errors="ignore")[-4000:],
+                    "stderr": (stderr_bytes or b"").decode(errors="ignore")[-4000:],
                 },
             )
 
         if not output_json_path.exists():
             raise HTTPException(
                 status_code=502,
-                detail=\"LIGHTON_OCR_OUTPUT_JSON not written by subprocess.\",
+                detail="LIGHTON_OCR_OUTPUT_JSON not written by subprocess.",
             )
         return json.loads(output_json_path.read_text(encoding=\"utf-8\"))
 
