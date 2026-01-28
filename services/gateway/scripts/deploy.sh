@@ -406,6 +406,35 @@ if [[ -f "${SRC_DIR}/app/static/music.js" ]]; then
   sudo chmod 644 "${APP_DIR}/app/static/music.js" || true
 fi
 
+# Ensure important UI static assets (favicons, manifest, SVGs) are present
+# even if operators customize rsync excludes.
+STATIC_FILES=(
+  "app/static/favicon.ico"
+  "app/static/apple-touch-icon.png"
+  "app/static/site.webmanifest"
+  "app/static/safari-pinned-tab.svg"
+  "app/static/browserconfig.xml"
+  "app/static/ai-infra.png"
+  "app/static/favicon-16.png"
+  "app/static/favicon-32.png"
+  "app/static/favicon-48.png"
+  "app/static/favicon-64.png"
+  "app/static/favicon-128.png"
+  "app/static/favicon-180.png"
+  "app/static/favicon-192.png"
+  "app/static/favicon-512.png"
+)
+for f in "${STATIC_FILES[@]}"; do
+  SRCF="${SRC_DIR}/${f}"
+  DSTF="${APP_DIR}/${f}"
+  if [[ -f "${SRCF}" ]]; then
+    sudo mkdir -p "$(dirname "${DSTF}")"
+    sudo cp -f "${SRCF}" "${DSTF}" || true
+    sudo chown gateway:staff "${DSTF}" || true
+    sudo chmod 644 "${DSTF}" || true
+  fi
+done
+
 # ---- install model alias config (non-destructive) ----
 # The gateway can load aliases from /var/lib/gateway/app/model_aliases.json.
 # Only install the example template if no file exists yet.
