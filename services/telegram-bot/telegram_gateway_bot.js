@@ -16,6 +16,10 @@ if (!GATEWAY_BEARER_TOKEN) {
   throw new Error('Missing GATEWAY_BEARER_TOKEN');
 }
 
+if (Number.isNaN(MAX_HISTORY) || MAX_HISTORY < 1) {
+  throw new Error('MAX_HISTORY must be a positive integer');
+}
+
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const histories = new Map();
 
@@ -49,9 +53,10 @@ async function queryGateway(history, message) {
       Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
       'Content-Type': 'application/json',
     },
+    timeout: 60000, // 60 second timeout
   });
 
-  return res.data?.choices?.[0]?.message?.content || res.data?.message?.content || '';
+  return res.data?.choices?.[0]?.message?.content || '';
 }
 
 bot.on('message', async (msg) => {
@@ -78,12 +83,13 @@ bot.on('message', async (msg) => {
 
   try {
     const answer = await queryGateway(history, userText);
+    // Only update history after successful response
     history.push({ role: 'user', content: userText });
     history.push({ role: 'assistant', content: answer });
     histories.set(chatId, trimHistory(history));
     await bot.sendMessage(chatId, answer || 'No response content.');
   } catch (err) {
-    console.error(err);
+    console.error(`Error for chat ${chatId}:`, err.message);
     await bot.sendMessage(chatId, 'Error talking to the gateway.');
   }
 });
