@@ -26,6 +26,7 @@ ENV_FILE="/etc/skyreels-v2/skyreels-v2.env"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../shim/skyreels_shim_server.py"
 TOOLS_SRC="${HERE}/../tools/run_skyreels_cli.py"
+TOOLS_COMPAT_SRC="${HERE}/../tools/run_skyreels.py"
 ENV_TEMPLATE="${HERE}/../env/skyreels-v2.env.example"
 REPO_URL_DEFAULT="https://github.com/SkyworkAI/SkyReels-V2"
 
@@ -54,6 +55,12 @@ install_shim() {
     sudo cp -f "$TOOLS_SRC" "${SERVICE_HOME}/tools/run_skyreels_cli.py"
     sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/tools/run_skyreels_cli.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/tools/run_skyreels_cli.py"
     sudo chmod 755 "${SERVICE_HOME}/tools/run_skyreels_cli.py"
+  fi
+  if [[ -f "$TOOLS_COMPAT_SRC" ]]; then
+    sudo mkdir -p "${SERVICE_HOME}/tools"
+    sudo cp -f "$TOOLS_COMPAT_SRC" "${SERVICE_HOME}/tools/run_skyreels.py"
+    sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/tools/run_skyreels.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/tools/run_skyreels.py"
+    sudo chmod 755 "${SERVICE_HOME}/tools/run_skyreels.py"
   fi
 }
 
@@ -114,7 +121,7 @@ if [[ "$OS" == "Darwin" ]]; then
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx imageio
 
   clone_repo
   install_requirements
@@ -162,7 +169,7 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx imageio
 
     clone_repo
     install_requirements
