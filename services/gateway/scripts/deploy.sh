@@ -480,6 +480,15 @@ if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
   sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
 fi
 
+# If TLS cert is present but PUBLIC_BASE_URL not set in the plist, add a default
+# so clients are encouraged to use HTTPS on ai2:8800.
+if [[ -f "/etc/ssl/certs/server.crt" && -x "${PLISTBUDDY}" && -f "${PLIST}" ]]; then
+  if ! sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables:PUBLIC_BASE_URL" "${PLIST}" >/dev/null 2>&1; then
+    echo "Adding default PUBLIC_BASE_URL=https://ai2:8800 to ${PLIST}"
+    sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:PUBLIC_BASE_URL string https://ai2:8800" "${PLIST}" || true
+  fi
+fi
+
 # ---- ensure installed plist contains SSL args + env vars, then restart service ----
 # Ensure the installed plist (if present) contains the canonical ssl args and
 # environment variables so launchd runs uvicorn with the expected cert/key.

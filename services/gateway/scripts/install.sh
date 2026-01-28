@@ -199,6 +199,16 @@ if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
   done
 fi
 
+# If TLS cert is present but PUBLIC_BASE_URL not set in .env, add a default
+# PUBLIC_BASE_URL to the installed plist so clients are encouraged to use HTTPS.
+if [[ -f "/etc/ssl/certs/server.crt" && -x "${PLISTBUDDY}" ]]; then
+  # Check if PUBLIC_BASE_URL already set in the plist
+  if ! "${PLISTBUDDY}" -c "Print :EnvironmentVariables:PUBLIC_BASE_URL" "${DST}" >/dev/null 2>&1; then
+    echo "Adding default PUBLIC_BASE_URL=https://ai2:8800 to ${DST}"
+    "${PLISTBUDDY}" -c "Add :EnvironmentVariables:PUBLIC_BASE_URL string https://ai2:8800" "${DST}" || true
+  fi
+fi
+
 # Check for canonical cert/key locations and report ownership/permissions
 KEY_PATH="/etc/ssl/private/server.key"
 CERT_PATH="/etc/ssl/certs/server.crt"
