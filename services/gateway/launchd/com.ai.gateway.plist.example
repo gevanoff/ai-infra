@@ -36,6 +36,16 @@
       <string>/var/lib/gateway</string>
       <key>PYTHONUNBUFFERED</key>
       <string>1</string>
+      <key>GATEWAY_TLS_CERT_PATH</key>
+      <string></string>
+      <key>GATEWAY_TLS_KEY_PATH</key>
+      <string></string>
+      <key>BACKEND_VERIFY_TLS</key>
+      <string>true</string>
+      <key>BACKEND_CA_BUNDLE</key>
+      <string></string>
+      <key>BACKEND_CLIENT_CERT</key>
+      <string></string>
     </dict>
 
     <key>StandardOutPath</key>

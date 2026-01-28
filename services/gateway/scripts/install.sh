@@ -168,6 +168,26 @@ sudo chmod 644 "$DST"
 # Validate plist parses as XML property list
 sudo plutil -lint "$DST" >/dev/null
 
+# If an env file exists, propagate selected TLS/backend envs into the plist
+ENV_DST="/var/lib/gateway/app/.env"
+PLISTBUDDY="/usr/libexec/PlistBuddy"
+if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
+  echo "Propagating TLS/backend env vars from ${ENV_DST} into plist ${DST}"
+  # Keys to copy into the plist EnvironmentVariables dict
+  KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH BACKEND_VERIFY_TLS BACKEND_CA_BUNDLE BACKEND_CLIENT_CERT)
+  for k in "${KEYS[@]}"; do
+    # extract the last assignment for the key (allow overrides)
+    v=$(grep -E "^${k}=" "${ENV_DST}" | tail -n1 | sed -E 's/^'"${k}"'=//') || true
+    if [[ -n "${v}" ]]; then
+      # Remove any surrounding quotes
+      v=$(echo "${v}" | sed -E 's/^"(.*)"$/\1/; s/^\x27(.*)\x27$/\1/')
+      # Remove existing key if present, then add new string value
+      "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${DST}" 2>/dev/null || true
+      "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${DST}" || true
+    fi
+  done
+fi
+
 # Start now only if the deployed log config exists; otherwise leave installed.
 LOGCFG="/var/lib/gateway/app/tools/uvicorn_log_config.json"
 if [[ -f "${LOGCFG}" ]]; then

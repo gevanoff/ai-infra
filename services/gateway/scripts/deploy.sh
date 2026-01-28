@@ -461,6 +461,25 @@ if [[ ! -f "${APP_DIR}/app/main.py" ]]; then
   exit 1
 fi
 
+# ---- propagate TLS/backend envs into plist (so launchd picks them up) ----
+# If an env file exists in the deployed app tree, copy selected keys into the
+# installed plist so launchd will expose them to the gateway process.
+PLISTBUDDY="/usr/libexec/PlistBuddy"
+if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
+  echo "Propagating TLS/backend env vars from ${ENV_DST} into plist ${PLIST}"
+  KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH BACKEND_VERIFY_TLS BACKEND_CA_BUNDLE BACKEND_CLIENT_CERT)
+  for k in "${KEYS[@]}"; do
+    v=$(grep -E "^${k}=" "${ENV_DST}" | tail -n1 | sed -E 's/^'"${k}"'=//') || true
+    if [[ -n "${v}" ]]; then
+      v=$(echo "${v}" | sed -E 's/^"(.*)"$/\1/; s/^\x27(.*)\x27$/\1/')
+      sudo "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${PLIST}" 2>/dev/null || true
+      sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${PLIST}" || true
+    fi
+  done
+  echo "Resulting plist EnvironmentVariables:"
+  sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
+fi
+
 # ---- restart service ----
 # kickstart alone is fine if it is already bootstrapped; bootstrap if missing.
 if sudo launchctl print "system/${LAUNCHD_LABEL}" >/dev/null 2>&1; then
