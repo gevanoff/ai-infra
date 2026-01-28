@@ -197,6 +197,11 @@ def health() -> Dict[str, Any]:
     return {"ok": True, "time": _now(), "service": "sdxl-turbo-shim"}
 
 
+@app.get("/healthz")
+def healthz() -> Dict[str, Any]:
+    return {"ok": True, "time": _now(), "service": "sdxl-turbo-shim"}
+
+
 @app.get("/readyz")
 def readyz() -> Dict[str, Any]:
     try:
@@ -204,6 +209,11 @@ def readyz() -> Dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     return {"ok": True, "time": _now()}
+
+
+@app.get("/ready")
+def ready() -> Dict[str, Any]:
+    return readyz()
 
 
 @app.get("/v1/models")
