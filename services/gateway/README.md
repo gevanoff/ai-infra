@@ -346,3 +346,9 @@ Example template:
    - `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/verify.sh`
    - (alias) `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test.sh`
    - (deeper) `GATEWAY_BEARER_TOKEN=... services/gateway/scripts/smoke_test_gateway.sh`
+
+## Telegram bot (OpenAI-style gateway client)
+
+A Telegram bot service is available that provides a chat interface to the Gateway using the OpenAI-style chat completions API. It maintains per-chat conversation history and runs as a systemd-managed service with automatic monitoring and restart.
+
+See `services/telegram-bot/README.md` for installation and usage instructions.
