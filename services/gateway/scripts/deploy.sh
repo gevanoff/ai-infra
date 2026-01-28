@@ -498,12 +498,12 @@ if [[ -f "${PLIST}" && -x "${PLISTBUDDY}" ]]; then
   fi
 
   # Ensure EnvironmentVariables contain canonical paths
-  declare -A ENVKV=(
-    [GATEWAY_TLS_CERT_PATH]="/etc/ssl/certs/server.crt"
-    [GATEWAY_TLS_KEY_PATH]="/etc/ssl/private/server.key"
-  )
-  for k in "${!ENVKV[@]}"; do
-    v="${ENVKV[$k]}"
+  # Use indexed arrays for portability on macOS (bash 3.x doesn't support associative arrays)
+  ENV_KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH)
+  ENV_VALS=("/etc/ssl/certs/server.crt" "/etc/ssl/private/server.key")
+  for i in "${!ENV_KEYS[@]}"; do
+    k="${ENV_KEYS[$i]}"
+    v="${ENV_VALS[$i]}"
     sudo "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${PLIST}" 2>/dev/null || true
     sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${PLIST}" || true
   done
