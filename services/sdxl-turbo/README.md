@@ -32,6 +32,7 @@ sudo ./services/sdxl-turbo/scripts/uninstall.sh
 - `GET /readyz`
 - `GET /v1/models`
 - `POST /v1/generate`
+- `POST /v1/images/generations` (OpenAI-style)
 
 Example request:
 
@@ -42,3 +43,11 @@ curl -X POST http://localhost:9050/v1/generate \
 ```
 
 The response includes a base64-encoded PNG under `data[0].b64_json`.
+
+OpenAI-style request:
+
+```bash
+curl -X POST http://localhost:9050/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "a cinematic photo of a cat astronaut", "size": "512x512", "n": 1, "response_format": "b64_json"}'
+```

@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import torch
 from diffusers import AutoPipelineForText2Image
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 
@@ -107,6 +107,23 @@ def _default_seed() -> Optional[int]:
     return None if seed < 0 else seed
 
 
+def _parse_size(size: Optional[str]) -> tuple[int, int]:
+    raw = (size or "").strip().lower()
+    if not raw:
+        return _default_width(), _default_height()
+    if "x" not in raw:
+        raise HTTPException(status_code=400, detail="size must be like '512x512'")
+    a, b = raw.split("x", 1)
+    try:
+        width = int(a.strip())
+        height = int(b.strip())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="size must be like '512x512'")
+    if width <= 0 or height <= 0:
+        raise HTTPException(status_code=400, detail="size must be positive")
+    return width, height
+
+
 def _ensure_pipeline() -> AutoPipelineForText2Image:
     global _PIPELINE, _PIPELINE_DEVICE, _PIPELINE_MODEL_ID
     if _PIPELINE is not None:
@@ -140,6 +157,41 @@ def _ensure_pipeline() -> AutoPipelineForText2Image:
     return pipeline
 
 
+def _generate_image(
+    *,
+    prompt: str,
+    negative_prompt: Optional[str],
+    num_inference_steps: int,
+    guidance_scale: float,
+    width: int,
+    height: int,
+    seed: Optional[int],
+) -> tuple[str, Optional[int]]:
+    pipeline = _ensure_pipeline()
+    device = _PIPELINE_DEVICE or "cpu"
+
+    generator = None
+    if seed is not None:
+        generator = torch.Generator(device=device).manual_seed(seed)
+
+    result = pipeline(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        num_inference_steps=num_inference_steps,
+        guidance_scale=guidance_scale,
+        width=width,
+        height=height,
+        generator=generator,
+    )
+
+    image = result.images[0]
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    return encoded, seed
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     return {"ok": True, "time": _now(), "service": "sdxl-turbo-shim"}
@@ -171,32 +223,100 @@ def models() -> Dict[str, Any]:
 
 @app.post("/v1/generate")
 def generate(payload: GenerateRequest) -> Dict[str, Any]:
-    pipeline = _ensure_pipeline()
-    device = _PIPELINE_DEVICE or "cpu"
-
     seed = payload.seed if payload.seed is not None else _default_seed()
-    generator = None
-    if seed is not None:
-        generator = torch.Generator(device=device).manual_seed(seed)
-
-    result = pipeline(
+    encoded, _ = _generate_image(
         prompt=payload.prompt,
         negative_prompt=payload.negative_prompt,
         num_inference_steps=payload.num_inference_steps or _default_steps(),
         guidance_scale=payload.guidance_scale if payload.guidance_scale is not None else _default_guidance(),
         width=payload.width or _default_width(),
         height=payload.height or _default_height(),
-        generator=generator,
+        seed=seed,
     )
-
-    image = result.images[0]
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     return {
         "created": _now(),
         "model": _PIPELINE_MODEL_ID,
         "data": [{"b64_json": encoded}],
         "seed": seed,
+    }
+
+
+@app.post("/v1/images/generations")
+async def openai_images(req: Request) -> Dict[str, Any]:
+    payload = await req.json()
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="body must be an object")
+
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must be a non-empty string")
+
+    n = payload.get("n", 1)
+    try:
+        n = int(n)
+    except Exception:
+        n = 1
+    n = max(1, min(n, 4))
+
+    response_format = (payload.get("response_format") or "b64_json").strip().lower()
+    if response_format not in {"b64_json", "url"}:
+        raise HTTPException(status_code=400, detail="response_format must be 'b64_json' or 'url'")
+    if response_format != "b64_json":
+        raise HTTPException(status_code=400, detail="response_format 'url' is not supported")
+
+    negative_prompt = payload.get("negative_prompt")
+    if not negative_prompt and payload.get("negative"):
+        negative_prompt = payload.get("negative")
+
+    size = payload.get("size")
+    width = payload.get("width")
+    height = payload.get("height")
+    if isinstance(width, int) and isinstance(height, int):
+        w, h = width, height
+    else:
+        w, h = _parse_size(size)
+
+    steps = payload.get("num_inference_steps")
+    if steps is None:
+        steps = payload.get("steps")
+    try:
+        steps = int(steps) if steps is not None else _default_steps()
+    except Exception:
+        steps = _default_steps()
+
+    guidance = payload.get("guidance_scale")
+    if guidance is None:
+        guidance = payload.get("cfg_scale")
+    if guidance is None:
+        guidance = payload.get("guidance")
+    try:
+        guidance = float(guidance) if guidance is not None else _default_guidance()
+    except Exception:
+        guidance = _default_guidance()
+
+    seed = payload.get("seed")
+    try:
+        seed = int(seed) if seed is not None else _default_seed()
+    except Exception:
+        seed = _default_seed()
+
+    data = []
+    for i in range(n):
+        seed_i = seed + i if isinstance(seed, int) else seed
+        encoded, used_seed = _generate_image(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            width=w,
+            height=h,
+            seed=seed_i,
+        )
+        data.append({"b64_json": encoded, "seed": used_seed})
+
+    return {
+        "created": _now(),
+        "model": _PIPELINE_MODEL_ID,
+        "data": data,
     }
