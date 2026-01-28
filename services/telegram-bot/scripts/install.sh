@@ -60,7 +60,7 @@ if [[ "$OS" == "Darwin" ]]; then
     echo "  User ${BOT_USER} already exists."
   fi
 
-  sudo mkdir -p "${RUNTIME_DIR}" "${APP_DIR}" "${LOG_DIR}"
+  sudo mkdir -p "${RUNTIME_DIR}" "${APP_DIR}" "${LOG_DIR}" "${RUNTIME_DIR}/.npm"
   sudo chown -R "${BOT_USER}":staff "${RUNTIME_DIR}" "${LOG_DIR}"
   echo "  Created directories: ${RUNTIME_DIR}, ${APP_DIR}, ${LOG_DIR}"
 
@@ -91,7 +91,7 @@ if [[ "$OS" == "Darwin" ]]; then
 
   echo "[5/6] Installing Node.js dependencies..."
   cd "${APP_DIR}"
-  if sudo -u "${BOT_USER}" npm install --production; then
+  if sudo -u "${BOT_USER}" -H env HOME="${RUNTIME_DIR}" npm_config_cache="${RUNTIME_DIR}/.npm" npm install --production; then
     echo "  Dependencies installed successfully."
   else
     echo "  WARNING: npm install failed. You may need to install dependencies manually."

@@ -43,7 +43,7 @@ if [[ "$OS" == "Darwin" ]]; then
 
   echo "[2/3] Installing/updating Node.js dependencies..."
   cd "${APP_DIR}"
-  if sudo -u "${BOT_USER}" npm install --production; then
+  if sudo -u "${BOT_USER}" -H env HOME="/var/lib/telegram-bot" npm_config_cache="/var/lib/telegram-bot/.npm" npm install --production; then
     echo "  Dependencies installed successfully."
   else
     echo "  WARNING: npm install failed."
