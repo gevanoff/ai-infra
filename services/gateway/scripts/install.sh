@@ -185,7 +185,7 @@ PLISTBUDDY="/usr/libexec/PlistBuddy"
 if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
   echo "Propagating TLS/backend env vars from ${ENV_DST} into plist ${DST}"
   # Keys to copy into the plist EnvironmentVariables dict
-  KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH BACKEND_VERIFY_TLS BACKEND_CA_BUNDLE BACKEND_CLIENT_CERT)
+  KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH BACKEND_VERIFY_TLS BACKEND_CA_BUNDLE BACKEND_CLIENT_CERT PUBLIC_BASE_URL)
   for k in "${KEYS[@]}"; do
     # extract the last assignment for the key (allow overrides)
     v=$(grep -E "^${k}=" "${ENV_DST}" | tail -n1 | sed -E 's/^'"${k}"'=//') || true
