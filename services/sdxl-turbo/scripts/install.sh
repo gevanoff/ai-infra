@@ -60,7 +60,7 @@ install_python_deps() {
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install \
-    fastapi "uvicorn[standard]" diffusers transformers accelerate safetensors pillow
+    fastapi "uvicorn[standard]" diffusers "transformers>=4.37.0" accelerate safetensors pillow sentencepiece protobuf
 
   if [[ -n "${SDXL_TURBO_PIP_EXTRA:-}" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${SDXL_TURBO_PIP_EXTRA}
