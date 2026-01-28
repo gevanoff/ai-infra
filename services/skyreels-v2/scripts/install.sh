@@ -25,6 +25,7 @@ VENV_PATH="${SERVICE_HOME}/venv"
 ENV_FILE="/etc/skyreels-v2/skyreels-v2.env"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../shim/skyreels_shim_server.py"
+TOOLS_SRC="${HERE}/../tools/run_skyreels_cli.py"
 ENV_TEMPLATE="${HERE}/../env/skyreels-v2.env.example"
 REPO_URL_DEFAULT="https://github.com/SkyworkAI/SkyReels-V2"
 
@@ -47,6 +48,13 @@ install_shim() {
   sudo cp -f "$SHIM_SRC" "${SERVICE_HOME}/skyreels_shim_server.py"
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/skyreels_shim_server.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/skyreels_shim_server.py"
   sudo chmod 644 "${SERVICE_HOME}/skyreels_shim_server.py"
+
+  if [[ -f "$TOOLS_SRC" ]]; then
+    sudo mkdir -p "${SERVICE_HOME}/tools"
+    sudo cp -f "$TOOLS_SRC" "${SERVICE_HOME}/tools/run_skyreels_cli.py"
+    sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/tools/run_skyreels_cli.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/tools/run_skyreels_cli.py"
+    sudo chmod 755 "${SERVICE_HOME}/tools/run_skyreels_cli.py"
+  fi
 }
 
 clone_repo() {

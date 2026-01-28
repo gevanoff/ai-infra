@@ -74,6 +74,11 @@ def health() -> Dict[str, Any]:
     return {"ok": True, "time": _now(), "service": "luxtts-shim"}
 
 
+@app.get("/healthz")
+def healthz() -> Dict[str, Any]:
+    return health()
+
+
 @app.get("/v1/models")
 def models() -> Dict[str, Any]:
     return {
