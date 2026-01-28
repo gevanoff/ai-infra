@@ -65,6 +65,50 @@
         "timeout_sec": 120,
         "cwd": "/var/lib/gateway/tools"
       }
+    },
+    {
+      "name": "lighton_ocr",
+      "version": "1",
+      "description": "Run OCR via the LightOnOCR backend (POST /v1/ocr).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "image": { "type": "string", "description": "Base64-encoded image bytes." },
+          "image_url": { "type": "string", "description": "URL or file path reference for the OCR backend." },
+          "language": { "type": "string" }
+        },
+        "required": [],
+        "additionalProperties": true
+      },
+      "exec": {
+        "type": "subprocess",
+        "argv": ["/usr/bin/python3", "/var/lib/gateway/tools/lighton_ocr_tool.py"],
+        "timeout_sec": 120,
+        "cwd": "/var/lib/gateway/tools"
+      }
+    },
+    {
+      "name": "skyreels_generate",
+      "version": "1",
+      "description": "Generate a video via the SkyReels-V2 backend (POST /v1/videos/generations).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": { "type": "string" },
+          "duration_seconds": { "type": "integer", "minimum": 1 },
+          "width": { "type": "integer", "minimum": 64 },
+          "height": { "type": "integer", "minimum": 64 },
+          "seed": { "type": "integer" }
+        },
+        "required": ["prompt"],
+        "additionalProperties": true
+      },
+      "exec": {
+        "type": "subprocess",
+        "argv": ["/usr/bin/python3", "/var/lib/gateway/tools/skyreels_generate.py"],
+        "timeout_sec": 1800,
+        "cwd": "/var/lib/gateway/tools"
+      }
     }
   ]
 }

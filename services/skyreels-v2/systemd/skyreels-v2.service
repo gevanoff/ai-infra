@@ -1,0 +1,17 @@
+[Unit]
+Description=SkyReels-V2 FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=skyreels
+Group=skyreels
+WorkingDirectory=/var/lib/skyreels-v2
+EnvironmentFile=/etc/skyreels-v2/skyreels-v2.env
+ExecStart=/var/lib/skyreels-v2/venv/bin/uvicorn skyreels_shim_server:app --host ${SKYREELS_HOST} --port ${SKYREELS_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

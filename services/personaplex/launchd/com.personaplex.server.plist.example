@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.personaplex.server</string>
+
+    <key>UserName</key><string>personaplex</string>
+    <key>WorkingDirectory</key><string>/var/lib/personaplex</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/personaplex/personaplex.env 2&gt;/dev/null || true; exec /var/lib/personaplex/venv/bin/uvicorn personaplex_server:app --host "${PERSONAPLEX_HOST:-127.0.0.1}" --port "${PERSONAPLEX_PORT:-9160}"</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/personaplex</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/personaplex/personaplex.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/personaplex/personaplex.err.log</string>
+  </dict>
+</plist>

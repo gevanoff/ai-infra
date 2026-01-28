@@ -6,6 +6,12 @@ macOS launchd-based infrastructure scripts for running local AI services.
 
 - `services/gateway`: FastAPI gateway exposing OpenAI-ish APIs; proxies to Ollama and MLX.
 - `services/heartmula`: HeartMula music generation runtime (for gateway audio backends).
+- `services/lighton-ocr`: LightOnOCR FastAPI shim (macOS launchd + Ubuntu systemd).
+- `services/personaplex`: PersonaPlex chat shim (macOS launchd + Ubuntu systemd).
+- `services/luxtts`: LuxTTS FastAPI shim (macOS launchd + Ubuntu systemd).
+- `services/qwen3-tts`: Qwen3-TTS FastAPI shim (macOS launchd + Ubuntu systemd).
+- `services/vibevoice-asr`: VibeVoice-ASR FastAPI shim (macOS launchd + Ubuntu systemd).
+- `services/skyreels-v2`: SkyReels-V2 video generation shim (Linux/systemd + macOS launchd).
 - `services/ollama`: Ollama runtime + model manifest.
 - `services/mlx`: MLX OpenAI server runtime + model manifest.
 - `services/pocket-tts`: Pocket TTS FastAPI shim (macOS launchd + Ubuntu systemd).

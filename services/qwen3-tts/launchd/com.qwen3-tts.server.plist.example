@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.qwen3-tts.server</string>
+
+    <key>UserName</key><string>qwen3tts</string>
+    <key>WorkingDirectory</key><string>/var/lib/qwen3-tts</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/qwen3-tts/qwen3-tts.env 2&gt;/dev/null || true; exec /var/lib/qwen3-tts/venv/bin/uvicorn qwen3_tts_server:app --host "${QWEN3_TTS_HOST:-127.0.0.1}" --port "${QWEN3_TTS_PORT:-9175}"</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/qwen3-tts</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/qwen3-tts/qwen3-tts.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/qwen3-tts/qwen3-tts.err.log</string>
+  </dict>
+</plist>
