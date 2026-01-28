@@ -11,7 +11,7 @@
     <array>
       <string>/bin/bash</string>
       <string>-lc</string>
-      <string>source /var/lib/telegram-bot/telegram-bot.env 2&gt;/dev/null || true; exec /usr/bin/env node /var/lib/telegram-bot/app/telegram_gateway_bot.js</string>
+      <string>set -a; source /var/lib/telegram-bot/telegram-bot.env 2&gt;/dev/null || true; set +a; exec /usr/bin/env node /var/lib/telegram-bot/app/telegram_gateway_bot.js</string>
     </array>
 
     <key>RunAtLoad</key><true/>
