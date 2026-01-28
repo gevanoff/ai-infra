@@ -60,7 +60,11 @@ install_python_deps() {
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -U \
-    fastapi "uvicorn[standard]" "diffusers>=0.27.2" "transformers>=4.40.2" accelerate safetensors pillow sentencepiece protobuf
+    fastapi "uvicorn[standard]" "diffusers>=0.27.2" "transformers>=4.40.2" accelerate safetensors pillow
+
+  # Force refresh transformer stack to ensure MT5Tokenizer is present
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -U --force-reinstall \
+    "transformers>=4.40.2" sentencepiece protobuf
 
   if [[ -n "${SDXL_TURBO_PIP_EXTRA:-}" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${SDXL_TURBO_PIP_EXTRA}
