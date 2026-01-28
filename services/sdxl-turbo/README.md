@@ -29,6 +29,8 @@ sudo ./services/sdxl-turbo/scripts/uninstall.sh
 ## API
 
 - `GET /health`
+- `GET /healthz`
+- `GET /ready`
 - `GET /readyz`
 - `GET /v1/models`
 - `POST /v1/generate`
