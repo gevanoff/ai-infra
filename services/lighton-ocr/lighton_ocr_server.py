@@ -193,7 +193,7 @@ async def ocr(payload: Dict[str, Any]) -> Any:
                 status_code=502,
                 detail="LIGHTON_OCR_OUTPUT_JSON not written by subprocess.",
             )
-        return json.loads(output_json_path.read_text(encoding=\"utf-8\"))
+        return json.loads(output_json_path.read_text(encoding="utf-8"))
 
 
 @app.get("/readyz")
