@@ -101,8 +101,16 @@ if [[ "$OS" == "Darwin" ]]; then
   sudo chown -R "${SERVICE_USER}":staff "${SERVICE_HOME}" /var/log/luxtts
   sudo chmod 750 "${SERVICE_HOME}" /var/log/luxtts
 
+  # Prefer Homebrew python3.11 on macOS (common on modern Macs with brew).
+  MAC_PYTHON_BIN="${LUXTTS_MAC_PYTHON_BIN:-/opt/homebrew/bin/python3.11}"
+  if command -v "$MAC_PYTHON_BIN" >/dev/null 2>&1; then
+    PYTHON_BIN_FOR_VENV="$MAC_PYTHON_BIN"
+  else
+    PYTHON_BIN_FOR_VENV="python3"
+  fi
+
   if [[ ! -d "$VENV_PATH" ]]; then
-    sudo -u "${SERVICE_USER}" -H python3 -m venv "$VENV_PATH"
+    sudo -u "${SERVICE_USER}" -H "$PYTHON_BIN_FOR_VENV" -m venv "$VENV_PATH"
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
