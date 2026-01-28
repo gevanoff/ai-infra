@@ -1,0 +1,17 @@
+[Unit]
+Description=SDXL Turbo FastAPI Service
+After=network.target
+
+[Service]
+Type=simple
+User=sdxlturbo
+Group=sdxlturbo
+WorkingDirectory=/var/lib/sdxl-turbo
+EnvironmentFile=/etc/sdxl-turbo/sdxl-turbo.env
+ExecStart=/var/lib/sdxl-turbo/venv/bin/uvicorn sdxl_turbo_server:app --host ${SDXL_TURBO_HOST} --port ${SDXL_TURBO_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
