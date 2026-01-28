@@ -480,7 +480,38 @@ if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
   sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
 fi
 
-# ---- restart service ----
+# ---- ensure installed plist contains SSL args + env vars, then restart service ----
+# Ensure the installed plist (if present) contains the canonical ssl args and
+# environment variables so launchd runs uvicorn with the expected cert/key.
+PLISTBUDDY="/usr/libexec/PlistBuddy"
+if [[ -f "${PLIST}" && -x "${PLISTBUDDY}" ]]; then
+  echo "Patching installed plist ${PLIST} to ensure SSL args and env vars"
+
+  # Add ssl ProgramArguments if missing
+  if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-certfile"; then
+    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-certfile" "${PLIST}" || true
+    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/certs/server.crt" "${PLIST}" || true
+  fi
+  if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-keyfile"; then
+    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-keyfile" "${PLIST}" || true
+    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/private/server.key" "${PLIST}" || true
+  fi
+
+  # Ensure EnvironmentVariables contain canonical paths
+  declare -A ENVKV=(
+    [GATEWAY_TLS_CERT_PATH]="/etc/ssl/certs/server.crt"
+    [GATEWAY_TLS_KEY_PATH]="/etc/ssl/private/server.key"
+  )
+  for k in "${!ENVKV[@]}"; do
+    v="${ENVKV[$k]}"
+    sudo "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${PLIST}" 2>/dev/null || true
+    sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${PLIST}" || true
+  done
+
+  echo "Patched plist EnvironmentVariables:"
+  sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
+fi
+
 # kickstart alone is fine if it is already bootstrapped; bootstrap if missing.
 if sudo launchctl print "system/${LAUNCHD_LABEL}" >/dev/null 2>&1; then
   sudo launchctl kickstart -k "system/${LAUNCHD_LABEL}"

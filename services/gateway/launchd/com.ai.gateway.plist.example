@@ -23,6 +23,10 @@
       <string>8800</string>
       <string>--log-config</string>
       <string>/var/lib/gateway/app/tools/uvicorn_log_config.json</string>
+      <string>--ssl-certfile</string>
+      <string>/etc/ssl/certs/server.crt</string>
+      <string>--ssl-keyfile</string>
+      <string>/etc/ssl/private/server.key</string>
     </array>
 
     <key>RunAtLoad</key>

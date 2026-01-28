@@ -188,6 +188,30 @@ if [[ -f "${ENV_DST}" && -x "${PLISTBUDDY}" ]]; then
   done
 fi
 
+# Check for canonical cert/key locations and report ownership/permissions
+KEY_PATH="/etc/ssl/private/server.key"
+CERT_PATH="/etc/ssl/certs/server.crt"
+if [[ -f "${KEY_PATH}" || -f "${CERT_PATH}" ]]; then
+  echo "Checking TLS files:" 
+  if [[ -f "${KEY_PATH}" ]]; then
+    echo "  Private key: ${KEY_PATH}"
+    ls -l "${KEY_PATH}" || true
+    echo "  Recommended permissions: owner root, group staff, mode 640"
+    echo "  To set: sudo chown root:staff ${KEY_PATH} && sudo chmod 640 ${KEY_PATH}"
+  else
+    echo "  Private key not found at ${KEY_PATH}"
+  fi
+
+  if [[ -f "${CERT_PATH}" ]]; then
+    echo "  Certificate: ${CERT_PATH}"
+    ls -l "${CERT_PATH}" || true
+    echo "  Recommended permissions: owner root, group staff, mode 644"
+    echo "  To set: sudo chown root:staff ${CERT_PATH} && sudo chmod 644 ${CERT_PATH}"
+  else
+    echo "  Certificate not found at ${CERT_PATH}"
+  fi
+fi
+
 # Start now only if the deployed log config exists; otherwise leave installed.
 LOGCFG="/var/lib/gateway/app/tools/uvicorn_log_config.json"
 if [[ -f "${LOGCFG}" ]]; then
