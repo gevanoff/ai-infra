@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, Optional
 
 import torch
-from diffusers import AutoPipelineForText2Image
+from diffusers import StableDiffusionXLPipeline
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -124,7 +124,7 @@ def _parse_size(size: Optional[str]) -> tuple[int, int]:
     return width, height
 
 
-def _ensure_pipeline() -> AutoPipelineForText2Image:
+def _ensure_pipeline() -> StableDiffusionXLPipeline:
     global _PIPELINE, _PIPELINE_DEVICE, _PIPELINE_MODEL_ID
     if _PIPELINE is not None:
         return _PIPELINE
@@ -142,7 +142,7 @@ def _ensure_pipeline() -> AutoPipelineForText2Image:
     if variant:
         kwargs["variant"] = variant
 
-    pipeline = AutoPipelineForText2Image.from_pretrained(model_id, **kwargs)
+    pipeline = StableDiffusionXLPipeline.from_pretrained(model_id, **kwargs)
     pipeline.to(device)
     pipeline.set_progress_bar_config(disable=True)
 
