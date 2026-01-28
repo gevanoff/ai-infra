@@ -494,31 +494,60 @@ fi
 # environment variables so launchd runs uvicorn with the expected cert/key.
 PLISTBUDDY="/usr/libexec/PlistBuddy"
 if [[ -f "${PLIST}" && -x "${PLISTBUDDY}" ]]; then
-  echo "Patching installed plist ${PLIST} to ensure SSL args and env vars"
+  # Quick check: only patch the plist when necessary (missing args/envs).
+  need_patch=0
 
-  # Add ssl ProgramArguments if missing
+  # Check required ProgramArguments
   if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-certfile"; then
-    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-certfile" "${PLIST}" || true
-    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/certs/server.crt" "${PLIST}" || true
+    need_patch=1
   fi
   if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-keyfile"; then
-    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-keyfile" "${PLIST}" || true
-    sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/private/server.key" "${PLIST}" || true
+    need_patch=1
   fi
 
-  # Ensure EnvironmentVariables contain canonical paths
-  # Use indexed arrays for portability on macOS (bash 3.x doesn't support associative arrays)
-  ENV_KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH)
-  ENV_VALS=("/etc/ssl/certs/server.crt" "/etc/ssl/private/server.key")
-  for i in "${!ENV_KEYS[@]}"; do
-    k="${ENV_KEYS[$i]}"
-    v="${ENV_VALS[$i]}"
-    sudo "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${PLIST}" 2>/dev/null || true
-    sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${PLIST}" || true
+  # Check required EnvironmentVariables
+  for _k in GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH; do
+    if ! sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables:${_k}" "${PLIST}" >/dev/null 2>&1; then
+      need_patch=1
+    fi
   done
 
-  echo "Patched plist EnvironmentVariables:"
-  sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
+  # If TLS cert exists, ensure PUBLIC_BASE_URL is present
+  if [[ -f "/etc/ssl/certs/server.crt" ]]; then
+    if ! sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables:PUBLIC_BASE_URL" "${PLIST}" >/dev/null 2>&1; then
+      need_patch=1
+    fi
+  fi
+
+  if [[ "${need_patch}" -eq 0 ]]; then
+    echo "Plist ${PLIST} already contains required SSL args and env vars; skipping patch."
+  else
+    echo "Patching installed plist ${PLIST} to ensure SSL args and env vars"
+
+    # Add ssl ProgramArguments if missing
+    if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-certfile"; then
+      sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-certfile" "${PLIST}" || true
+      sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/certs/server.crt" "${PLIST}" || true
+    fi
+    if ! sudo "${PLISTBUDDY}" -c "Print :ProgramArguments" "${PLIST}" 2>/dev/null | grep -q -- "--ssl-keyfile"; then
+      sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string --ssl-keyfile" "${PLIST}" || true
+      sudo "${PLISTBUDDY}" -c "Add :ProgramArguments: string /etc/ssl/private/server.key" "${PLIST}" || true
+    fi
+
+    # Ensure EnvironmentVariables contain canonical paths
+    # Use indexed arrays for portability on macOS (bash 3.x doesn't support associative arrays)
+    ENV_KEYS=(GATEWAY_TLS_CERT_PATH GATEWAY_TLS_KEY_PATH)
+    ENV_VALS=("/etc/ssl/certs/server.crt" "/etc/ssl/private/server.key")
+    for i in "${!ENV_KEYS[@]}"; do
+      k="${ENV_KEYS[$i]}"
+      v="${ENV_VALS[$i]}"
+      sudo "${PLISTBUDDY}" -c "Delete :EnvironmentVariables:${k}" "${PLIST}" 2>/dev/null || true
+      sudo "${PLISTBUDDY}" -c "Add :EnvironmentVariables:${k} string ${v}" "${PLIST}" || true
+    done
+
+    echo "Patched plist EnvironmentVariables:"
+    sudo "${PLISTBUDDY}" -c "Print :EnvironmentVariables" "${PLIST}" 2>/dev/null || true
+  fi
 fi
 
 # kickstart alone is fine if it is already bootstrapped; bootstrap if missing.
