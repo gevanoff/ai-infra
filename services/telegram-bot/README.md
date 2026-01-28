@@ -7,9 +7,12 @@ Telegram bot client for the Gateway OpenAI-style chat API. Provides a simple cha
 - Connects to Gateway using OpenAI-style chat completions API
 - Maintains per-chat conversation history in memory
 - Supports optional system prompts
-- Automatic history trimming to bound memory usage
+- Automatic history trimming to bound memory usage per chat
 - `/reset` command to clear conversation state
 - Systemd-managed for automatic startup and monitoring
+- 60-second timeout for Gateway requests to prevent hanging
+
+**Note**: Conversation histories are stored in memory and will persist until the service restarts or the `/reset` command is used. For production deployments with many users, consider monitoring memory usage.
 
 ## Architecture
 
@@ -52,7 +55,7 @@ Edit `/var/lib/telegram-bot/telegram-bot.env`:
 - `GATEWAY_URL`: Gateway endpoint (default: `http://127.0.0.1:8800/v1/chat/completions`)
 - `GATEWAY_MODEL`: Model to use (default: `auto`)
 - `SYSTEM_PROMPT`: System message prepended to each chat (default: empty)
-- `MAX_HISTORY`: Maximum message pairs to keep in history (default: 20)
+- `MAX_HISTORY`: Maximum number of messages to keep in history (default: 20). Note: This is total messages, not user-assistant pairs. System prompts are kept separately.
 
 ## Usage
 

@@ -34,21 +34,22 @@ if [[ -f "${SERVICE_DST}" ]]; then
 fi
 
 echo "[3/5] Removing runtime directories..."
-if [[ -d "${RUNTIME_DIR}" ]]; then
-  echo "  WARNING: This will delete all data in ${RUNTIME_DIR}"
+if [[ -d "${RUNTIME_DIR}" ]] || [[ -d "${LOG_DIR}" ]]; then
+  echo "  WARNING: This will delete all data in ${RUNTIME_DIR} and ${LOG_DIR}"
   read -p "  Continue? (y/N) " -n 1 -r
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
-    rm -rf "${RUNTIME_DIR}"
-    echo "  Removed ${RUNTIME_DIR}"
+    if [[ -d "${RUNTIME_DIR}" ]]; then
+      rm -rf "${RUNTIME_DIR}"
+      echo "  Removed ${RUNTIME_DIR}"
+    fi
+    if [[ -d "${LOG_DIR}" ]]; then
+      rm -rf "${LOG_DIR}"
+      echo "  Removed ${LOG_DIR}"
+    fi
   else
-    echo "  Skipped removing ${RUNTIME_DIR}"
+    echo "  Skipped removing directories"
   fi
-fi
-
-if [[ -d "${LOG_DIR}" ]]; then
-  rm -rf "${LOG_DIR}"
-  echo "  Removed ${LOG_DIR}"
 fi
 
 echo "[4/5] Removing user..."
