@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.telegram-bot.server</string>
+
+    <key>UserName</key><string>telegram-bot</string>
+    <key>WorkingDirectory</key><string>/var/lib/telegram-bot/app</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /var/lib/telegram-bot/telegram-bot.env 2&gt;/dev/null || true; exec /usr/bin/env node /var/lib/telegram-bot/app/telegram_gateway_bot.js</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/telegram-bot</string>
+      <key>NODE_ENV</key><string>production</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/telegram-bot/telegram-bot.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/telegram-bot/telegram-bot.err.log</string>
+  </dict>
+</plist>

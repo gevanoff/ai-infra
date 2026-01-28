@@ -14,6 +14,15 @@ SERVICE_DST="/etc/systemd/system/${LABEL}.service"
 RUNTIME_DIR="/var/lib/telegram-bot"
 LOG_DIR="/var/log/telegram-bot"
 BOT_USER="${BOT_USER:-telegram-bot}"
+OS="$(uname -s 2>/dev/null || echo unknown)"
+
+if [[ "$OS" == "Darwin" ]]; then
+  LABEL_LAUNCHD="com.telegram-bot.server"
+  sudo launchctl bootout system/"${LABEL_LAUNCHD}" 2>/dev/null || true
+  sudo rm -f "/Library/LaunchDaemons/${LABEL_LAUNCHD}.plist"
+  echo "Removed launchd plist: ${LABEL_LAUNCHD}"
+  exit 0
+fi
 
 echo "[1/5] Stopping and disabling service..."
 if systemctl is-active --quiet "${LABEL}.service"; then

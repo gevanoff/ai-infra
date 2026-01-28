@@ -34,10 +34,10 @@ sudo ./install.sh
 This will:
 1. Create the `telegram-bot` system user
 2. Create runtime directories
-3. Install the systemd service
+3. Install the systemd service (Linux) or launchd plist (macOS)
 4. Copy the environment file template
 5. Copy bot code and install Node.js dependencies
-6. Enable the service (but not start it)
+6. Enable the service (Linux) or bootstrap launchd (macOS)
 
 After installation, **edit `/var/lib/telegram-bot/telegram-bot.env`** with your:
 - `TELEGRAM_TOKEN`: Get from [@BotFather](https://t.me/BotFather) on Telegram
@@ -65,6 +65,12 @@ Edit `/var/lib/telegram-bot/telegram-bot.env`:
 sudo systemctl start telegram-bot
 ```
 
+On macOS:
+
+```bash
+sudo launchctl kickstart -k system/com.telegram-bot.server
+```
+
 ### Check status
 
 ```bash
@@ -73,10 +79,24 @@ sudo ./status.sh
 sudo systemctl status telegram-bot
 ```
 
+On macOS:
+
+```bash
+sudo ./status.sh
+# or
+sudo launchctl print system/com.telegram-bot.server
+```
+
 ### View logs
 
 ```bash
 sudo journalctl -u telegram-bot -f
+```
+
+On macOS:
+
+```bash
+tail -f /var/log/telegram-bot/telegram-bot.err.log
 ```
 
 ### Restart
@@ -85,6 +105,12 @@ sudo journalctl -u telegram-bot -f
 sudo ./restart.sh
 # or
 sudo systemctl restart telegram-bot
+```
+
+On macOS:
+
+```bash
+sudo ./restart.sh
 ```
 
 ### Deploy code updates
@@ -123,6 +149,12 @@ The service is configured with:
 Check service health:
 ```bash
 sudo systemctl is-active telegram-bot
+```
+
+On macOS:
+
+```bash
+sudo launchctl print system/com.telegram-bot.server
 ```
 
 ## Security Notes
