@@ -59,6 +59,25 @@ def _model_id() -> str:
     return _env("PERSONAPLEX_MODEL", "personaplex") or "personaplex"
 
 
+def _log_path(name: str) -> str:
+    log_dir = _env("PERSONAPLEX_LOG_DIR", "/var/log/personaplex") or "/var/log/personaplex"
+    return os.path.join(log_dir, name)
+
+
+def _append_log(path: str, data: bytes, job_id: str) -> None:
+    if not data:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "ab") as handle:
+            handle.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} job={job_id} ---\n".encode())
+            handle.write(data)
+            if not data.endswith(b"\n"):
+                handle.write(b"\n")
+    except OSError:
+        return
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     return {"ok": True, "time": _now(), "service": "personaplex-shim"}
@@ -133,6 +152,11 @@ async def chat_completions(payload: Dict[str, Any]) -> Any:
                 "timeout_sec": _timeout_sec(),
             },
         )
+
+    stdout_log = _log_path("personaplex.out.log")
+    stderr_log = _log_path("personaplex.err.log")
+    _append_log(stdout_log, stdout_bytes or b"", job_id)
+    _append_log(stderr_log, stderr_bytes or b"", job_id)
 
     if proc.returncode != 0:
         raise HTTPException(
