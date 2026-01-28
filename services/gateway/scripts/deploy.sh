@@ -524,6 +524,17 @@ else
   sudo launchctl kickstart -k "system/${LAUNCHD_LABEL}"
 fi
 
+# Ensure redirect job is started if the redirect plist exists
+REDIRECT_PLIST="/Library/LaunchDaemons/com.ai.gateway.redirect.plist"
+if [[ -f "${REDIRECT_PLIST}" ]]; then
+  if sudo launchctl print "system/com.ai.gateway.redirect" >/dev/null 2>&1; then
+    sudo launchctl kickstart -k "system/com.ai.gateway.redirect" || true
+  else
+    sudo launchctl bootstrap system "${REDIRECT_PLIST}" || true
+    sudo launchctl kickstart -k "system/com.ai.gateway.redirect" || true
+  fi
+fi
+
 # ---- verify ----
 echo "Waiting for health endpoint..."
 for i in {1..30}; do

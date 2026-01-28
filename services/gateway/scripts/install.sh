@@ -168,6 +168,17 @@ sudo chmod 644 "$DST"
 # Validate plist parses as XML property list
 sudo plutil -lint "$DST" >/dev/null
 
+# Install optional redirect plist example (HTTP -> HTTPS)
+REDIRECT_SRC="${HERE}/../launchd/com.ai.gateway.redirect.plist.example"
+REDIRECT_DST="/Library/LaunchDaemons/com.ai.gateway.redirect.plist"
+if [[ -f "${REDIRECT_SRC}" ]]; then
+  sudo cp "${REDIRECT_SRC}" "${REDIRECT_DST}"
+  sudo chown root:wheel "${REDIRECT_DST}"
+  sudo chmod 644 "${REDIRECT_DST}"
+  sudo plutil -lint "${REDIRECT_DST}" >/dev/null || true
+  echo "Installed redirect plist: ${REDIRECT_DST}"
+fi
+
 # If an env file exists, propagate selected TLS/backend envs into the plist
 ENV_DST="/var/lib/gateway/app/.env"
 PLISTBUDDY="/usr/libexec/PlistBuddy"

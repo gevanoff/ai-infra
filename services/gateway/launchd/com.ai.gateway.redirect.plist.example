@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.ai.gateway.redirect</string>
+
+    <key>UserName</key>
+    <string>root</string>
+
+    <key>WorkingDirectory</key>
+    <string>/var/lib/gateway/app</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/python3</string>
+      <string>/var/lib/gateway/app/tools/http_to_https_redirect.py</string>
+      <string>--listen</string>
+      <string>0.0.0.0</string>
+      <string>--listen-port</string>
+      <string>80</string>
+      <string>--https-port</string>
+      <string>8800</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/gateway/redirect.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/gateway/redirect.err.log</string>
+  </dict>
+</plist>
