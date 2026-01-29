@@ -131,7 +131,14 @@ This stops the service, removes files, and deletes the user.
 
 ## Telegram Commands
 
+- `/start`: Start the bot and show a welcome message
+- `/help`: Show available commands
 - `/reset`: Clear the conversation history for the current chat
+- `/history`: Export the conversation history as a text file
+- `/me`: Show bot profile information
+- `/whoami`: Show your chat membership status
+- `/chatinfo`: Show chat metadata
+- `/poll`: Create a poll using `/poll Question | option 1 | option 2`
 
 ## Dependencies
 
