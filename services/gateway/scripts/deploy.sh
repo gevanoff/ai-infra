@@ -584,7 +584,7 @@ fi
 echo "Waiting for health endpoint..."
 for i in {1..30}; do
   # Add explicit timeouts so a stalled connect/read can't hang the deploy.
-  if curl -fsS "${CURL_TLS_ARGS[@]}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${HEALTH_URL}" >/dev/null 2>&1; then
+  if curl -fsS ${CURL_TLS_ARGS[@]+"${CURL_TLS_ARGS[@]}"} --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${HEALTH_URL}" >/dev/null 2>&1; then
     echo "OK: health endpoint responds"
     break
   fi
@@ -609,15 +609,15 @@ sudo lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN || true
 # and validate basic accessibility. This is best-effort and will not fail the deploy.
 if [[ -f "${APP_DIR}/app/static/music.html" ]]; then
   echo "Checking /ui/music..."
-  MUSIC_URL="http://127.0.0.1:${PORT}/ui/music"
+  MUSIC_URL="https://127.0.0.1:${PORT}/ui/music"
   UI_OK=0
   for i in {1..6}; do
-    if curl -fsS "${CURL_TLS_ARGS[@]}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" >/dev/null 2>&1; then
+    if curl -fsS ${CURL_TLS_ARGS[@]+"${CURL_TLS_ARGS[@]}"} --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" >/dev/null 2>&1; then
       echo "OK: /ui/music responded"
       UI_OK=1
       break
     else
-      status=$(curl -sS "${CURL_TLS_ARGS[@]}" -o /dev/null -w "%{http_code}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" || true)
+      status=$(curl -sS ${CURL_TLS_ARGS[@]+"${CURL_TLS_ARGS[@]}"} -o /dev/null -w "%{http_code}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" || true)
       if [[ "${status}" == "403" ]]; then
         echo "WARN: /ui/music returned 403 (UI may be disabled or your deploy host is not allowlisted)"
         UI_OK=1

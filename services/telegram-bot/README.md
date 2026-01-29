@@ -143,7 +143,7 @@ This stops the service, removes files, and deletes the user.
 ## Dependencies
 
 Node.js packages (installed automatically by install.sh):
-- `node-telegram-bot-api`: Telegram Bot API client
+- `grammy`: Telegram Bot API client
 - `axios`: HTTP client for Gateway requests
 
 ## Monitoring

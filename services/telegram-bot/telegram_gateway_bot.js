@@ -1,4 +1,4 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { Bot, InputFile } = require('grammy');
 const axios = require('axios');
 const https = require('https');
 
@@ -28,7 +28,7 @@ if (Number.isNaN(MAX_HISTORY) || MAX_HISTORY < 1) {
   throw new Error('MAX_HISTORY must be a positive integer');
 }
 
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const bot = new Bot(TELEGRAM_TOKEN);
 const histories = new Map();
 
 const COMMANDS = [
@@ -42,7 +42,7 @@ const COMMANDS = [
   { command: 'poll', description: 'Create a poll: /poll Question | option 1 | option 2' },
 ];
 
-bot.setMyCommands(COMMANDS).catch((err) => {
+bot.api.setMyCommands(COMMANDS).catch((err) => {
   console.error('Failed to set bot commands:', err.message);
 });
 
@@ -64,16 +64,6 @@ function trimHistory(history) {
   return [...system, ...trimmed];
 }
 
-function parseCommand(text) {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('/')) {
-    return null;
-  }
-  const [commandPart, ...rest] = trimmed.split(' ');
-  const command = commandPart.split('@')[0].slice(1).toLowerCase();
-  return { command, args: rest.join(' ').trim() };
-}
-
 function buildHelpText() {
   const commandLines = COMMANDS.map((entry) => `/${entry.command} - ${entry.description}`);
   return [
@@ -84,9 +74,9 @@ function buildHelpText() {
   ].join('\n');
 }
 
-async function handleHistoryExport(chatId, history) {
+async function handleHistoryExport(ctx, history) {
   if (!history.length) {
-    await bot.sendMessage(chatId, 'No history available yet.');
+    await ctx.reply('No history available yet.');
     return;
   }
   const lines = history
@@ -94,28 +84,22 @@ async function handleHistoryExport(chatId, history) {
     .map((entry) => `[${entry.role}] ${entry.content}`)
     .join('\n\n');
   const buffer = Buffer.from(lines, 'utf8');
-  await bot.sendDocument(
-    chatId,
-    buffer,
-    { caption: 'Conversation history.' },
-    { filename: `chat-${chatId}-history.txt`, contentType: 'text/plain' },
-  );
+  await ctx.replyWithDocument(new InputFile(buffer, `chat-${ctx.chat.id}-history.txt`), {
+    caption: 'Conversation history.',
+  });
 }
 
-async function handlePoll(chatId, args) {
+async function handlePoll(ctx, args) {
   const segments = args
     .split('|')
     .map((segment) => segment.trim())
     .filter(Boolean);
   const [question, ...options] = segments;
   if (!question || options.length < 2) {
-    await bot.sendMessage(
-      chatId,
-      'Usage: /poll Question | option 1 | option 2 (at least two options required).',
-    );
+    await ctx.reply('Usage: /poll Question | option 1 | option 2 (at least two options required).');
     return;
   }
-  await bot.sendPoll(chatId, question, options, { is_anonymous: false });
+  await ctx.api.sendPoll(ctx.chat.id, question, options, { is_anonymous: false });
 }
 
 async function queryGateway(history, message) {
@@ -130,96 +114,82 @@ async function queryGateway(history, message) {
       Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    timeout: 60000, // 60 second timeout
+    timeout: 60000,
     httpsAgent: HTTPS_AGENT,
   });
 
   return res.data?.choices?.[0]?.message?.content || '';
 }
 
-bot.on('message', async (msg) => {
-  const chatId = msg.chat?.id;
-  const userText = msg.text || '';
+bot.command('start', async (ctx) => {
+  await ctx.reply('Welcome! Send a message to chat with the Gateway.');
+});
 
-  if (!chatId) {
+bot.command('help', async (ctx) => {
+  await ctx.reply(buildHelpText());
+});
+
+bot.command('reset', async (ctx) => {
+  histories.delete(ctx.chat.id);
+  await ctx.reply('Conversation reset.');
+});
+
+bot.command('history', async (ctx) => {
+  await handleHistoryExport(ctx, getHistory(ctx.chat.id));
+});
+
+bot.command('me', async (ctx) => {
+  const me = await bot.api.getMe();
+  await ctx.reply(`Bot: ${me.first_name}${me.username ? ` (@${me.username})` : ''} | ID: ${me.id}`);
+});
+
+bot.command('whoami', async (ctx) => {
+  if (!ctx.from?.id) {
+    await ctx.reply('Unable to determine your user ID.');
     return;
   }
+  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from.id);
+  await ctx.reply(`You are ${member.status} in this chat.${member.user?.username ? ` (@${member.user.username})` : ''}`);
+});
 
-  const commandData = parseCommand(userText);
-  if (commandData) {
-    const { command, args } = commandData;
-    switch (command) {
-      case 'start':
-        await bot.sendMessage(chatId, 'Welcome! Send a message to chat with the Gateway.');
-        return;
-      case 'help':
-        await bot.sendMessage(chatId, buildHelpText());
-        return;
-      case 'reset':
-        histories.delete(chatId);
-        await bot.sendMessage(chatId, 'Conversation reset.');
-        return;
-      case 'history':
-        await handleHistoryExport(chatId, getHistory(chatId));
-        return;
-      case 'me': {
-        const me = await bot.getMe();
-        await bot.sendMessage(
-          chatId,
-          `Bot: ${me.first_name}${me.username ? ` (@${me.username})` : ''} | ID: ${me.id}`,
-        );
-        return;
-      }
-      case 'whoami': {
-        if (!msg.from?.id) {
-          await bot.sendMessage(chatId, 'Unable to determine your user ID.');
-          return;
-        }
-        const member = await bot.getChatMember(chatId, msg.from.id);
-        await bot.sendMessage(
-          chatId,
-          `You are ${member.status} in this chat.${member.user?.username ? ` (@${member.user.username})` : ''}`,
-        );
-        return;
-      }
-      case 'chatinfo': {
-        const chat = await bot.getChat(chatId);
-        const name = chat.title || chat.username || chat.first_name || 'this chat';
-        const description = chat.description ? `\nDescription: ${chat.description}` : '';
-        await bot.sendMessage(
-          chatId,
-          `Chat: ${name}\nType: ${chat.type}\nID: ${chat.id}${description}`,
-        );
-        return;
-      }
-      case 'poll':
-        await handlePoll(chatId, args);
-        return;
-      default:
-        await bot.sendMessage(chatId, 'Unknown command. Use /help for available commands.');
-        return;
-    }
-  }
+bot.command('chatinfo', async (ctx) => {
+  const chat = await ctx.api.getChat(ctx.chat.id);
+  const name = chat.title || chat.username || chat.first_name || 'this chat';
+  const description = chat.description ? `\nDescription: ${chat.description}` : '';
+  await ctx.reply(`Chat: ${name}\nType: ${chat.type}\nID: ${chat.id}${description}`);
+});
+
+bot.command('poll', async (ctx) => {
+  const args = String(ctx.match || '').trim();
+  await handlePoll(ctx, args);
+});
+
+bot.on('message:text', async (ctx) => {
+  const userText = ctx.message?.text || '';
 
   if (!userText.trim()) {
     return;
   }
 
-  const history = getHistory(chatId);
+  const history = getHistory(ctx.chat.id);
 
-  await bot.sendChatAction(chatId, 'typing');
+  await ctx.api.sendChatAction(ctx.chat.id, 'typing');
 
   try {
     const answer = await queryGateway(history, userText);
-    // Only update history after successful response
     history.push({ role: 'user', content: userText });
     history.push({ role: 'assistant', content: answer });
-    histories.set(chatId, trimHistory(history));
-    await bot.sendMessage(chatId, answer || 'No response content.');
+    histories.set(ctx.chat.id, trimHistory(history));
+    await ctx.reply(answer || 'No response content.');
   } catch (err) {
-    console.error(`Error for chat ${chatId}:`, err.message);
-    await bot.sendMessage(chatId, 'Error talking to the gateway.');
+    console.error(`Error for chat ${ctx.chat.id}:`, err.message);
+    await ctx.reply('Error talking to the gateway.');
   }
 });
 
+bot.catch((err) => {
+  console.error('Bot error:', err.error || err.message || err);
+});
+
+bot.start();
 console.log('Telegram gateway bot is running.');
