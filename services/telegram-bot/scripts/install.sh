@@ -93,6 +93,7 @@ if [[ "$OS" == "Darwin" ]]; then
   cd "${APP_DIR}"
   if sudo -u "${BOT_USER}" -H env HOME="${RUNTIME_DIR}" npm_config_cache="${RUNTIME_DIR}/.npm" npm install --production; then
     echo "  Dependencies installed successfully."
+    sudo -u "${BOT_USER}" -H env HOME="${RUNTIME_DIR}" npm_config_cache="${RUNTIME_DIR}/.npm" npm audit fix --omit=dev || true
   else
     echo "  WARNING: npm install failed. You may need to install dependencies manually."
   fi
@@ -150,6 +151,7 @@ echo "[5/6] Installing Node.js dependencies..."
 cd "${APP_DIR}"
 if sudo -u "${BOT_USER}" npm install --production; then
   echo "  Dependencies installed successfully."
+  sudo -u "${BOT_USER}" npm audit fix --omit=dev || true
 else
   echo "  WARNING: npm install failed. You may need to install dependencies manually."
 fi
