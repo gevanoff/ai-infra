@@ -1,12 +1,20 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
+const https = require('https');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8800/v1/chat/completions';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'https://127.0.0.1:8800/v1/chat/completions';
 const GATEWAY_BEARER_TOKEN = process.env.GATEWAY_BEARER_TOKEN;
 const GATEWAY_MODEL = process.env.GATEWAY_MODEL || 'auto';
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || '';
 const MAX_HISTORY = Number.parseInt(process.env.MAX_HISTORY || '20', 10);
+const GATEWAY_TLS_INSECURE = new Set(['1', 'true', 'yes', 'on']).has(
+  String(process.env.GATEWAY_TLS_INSECURE || '').toLowerCase(),
+);
+
+const HTTPS_AGENT = GATEWAY_TLS_INSECURE
+  ? new https.Agent({ rejectUnauthorized: false })
+  : undefined;
 
 if (!TELEGRAM_TOKEN) {
   throw new Error('Missing TELEGRAM_TOKEN');
@@ -123,6 +131,7 @@ async function queryGateway(history, message) {
       'Content-Type': 'application/json',
     },
     timeout: 60000, // 60 second timeout
+    httpsAgent: HTTPS_AGENT,
   });
 
   return res.data?.choices?.[0]?.message?.content || '';

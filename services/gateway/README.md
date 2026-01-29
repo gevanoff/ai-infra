@@ -222,7 +222,7 @@ Memory injection can be overridden per request using `X-Memory-*` headers:
 Example (`curl`)
 
 ```bash
-curl -sS http://127.0.0.1:8800/v1/chat/completions \
+curl -k -sS https://127.0.0.1:8800/v1/chat/completions \
    -H "Authorization: Bearer $GATEWAY_BEARER_TOKEN" \
    -H "Content-Type: application/json" \
    -H "X-Memory-Enabled: true" \

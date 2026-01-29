@@ -46,7 +46,7 @@ _read_env_file_kv() {
 }
 
 BASE_URL="${GATEWAY_BASE_URL:-$(_read_env_file_kv GATEWAY_BASE_URL "${ENV_FILE}")}";
-BASE_URL="${BASE_URL:-http://127.0.0.1:8800}"
+BASE_URL="${BASE_URL:-https://127.0.0.1:8800}"
 
 TOKEN="${GATEWAY_BEARER_TOKEN:-$(_read_env_file_kv GATEWAY_BEARER_TOKEN "${ENV_FILE}")}";
 if [[ -z "${TOKEN}" ]]; then
@@ -56,8 +56,14 @@ fi
 
 echo "Running appliance smoketest against ${BASE_URL}"
 
+INSECURE_FLAG=()
+if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
+  INSECURE_FLAG=("--insecure")
+fi
+
 "${PYTHON_BIN}" "${SCRIPT_PATH}" \
   --skip-pytest \
   --base-url "${BASE_URL}" \
   --token "${TOKEN}" \
+  ${INSECURE_FLAG[@]+"${INSECURE_FLAG[@]}"} \
   --appliance

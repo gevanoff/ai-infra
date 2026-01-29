@@ -52,7 +52,7 @@ Edit `/var/lib/telegram-bot/telegram-bot.env`:
 - `GATEWAY_BEARER_TOKEN`: Bearer token for Gateway authentication
 
 ### Optional
-- `GATEWAY_URL`: Gateway endpoint (default: `http://127.0.0.1:8800/v1/chat/completions`)
+- `GATEWAY_URL`: Gateway endpoint (default: `https://127.0.0.1:8800/v1/chat/completions`)
 - `GATEWAY_MODEL`: Model to use (default: `auto`)
 - `SYSTEM_PROMPT`: System message prepended to each chat (default: empty)
 - `MAX_HISTORY`: Maximum number of messages to keep in history (default: 20). Note: This is total messages, not user-assistant pairs. System prompts are kept separately.
@@ -182,12 +182,13 @@ sudo journalctl -u telegram-bot -n 50
 Common issues:
 - Missing or invalid `TELEGRAM_TOKEN`
 - Missing or invalid `GATEWAY_BEARER_TOKEN`
+- TLS errors (set `GATEWAY_TLS_INSECURE=true` only for self-signed local certs)
 - Gateway service not running
 - Node.js dependencies not installed
 
 ### Bot not responding
 1. Check if the bot is running: `sudo systemctl status telegram-bot`
-2. Check Gateway is accessible: `curl http://127.0.0.1:8800/health`
+2. Check Gateway is accessible: `curl -k https://127.0.0.1:8800/health`
 3. Check recent logs: `sudo journalctl -u telegram-bot -n 20`
 
 ### Dependencies missing

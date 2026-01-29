@@ -48,7 +48,7 @@ _read_env_file_kv() {
 }
 
 BASE_URL="${GATEWAY_BASE_URL:-$(_read_env_file_kv GATEWAY_BASE_URL "${ENV_FILE}")}";
-BASE_URL="${BASE_URL:-http://127.0.0.1:8800}"
+BASE_URL="${BASE_URL:-https://127.0.0.1:8800}"
 
 TOKEN="${GATEWAY_BEARER_TOKEN:-$(_read_env_file_kv GATEWAY_BEARER_TOKEN "${ENV_FILE}")}";
 if [[ -z "${TOKEN}" ]]; then
@@ -83,9 +83,15 @@ if [[ -f "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" ]]; then
   cat "${APP_DIR}/DEPLOYED_AI_INFRA_COMMIT" || true
 fi
 
+INSECURE_FLAG=()
+if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
+  INSECURE_FLAG=("--insecure")
+fi
+
 sudo -u gateway -H "${PYTHON_BIN}" "${SCRIPT_PATH}" \
   --base-url "${BASE_URL}" \
   --token "${TOKEN}" \
+  ${INSECURE_FLAG[@]+"${INSECURE_FLAG[@]}"} \
   --ollama-base-url "${OLLAMA_BASE_URL}" \
   --mlx-base-url "${MLX_BASE_URL}" \
   --out "${OUT_PATH}"

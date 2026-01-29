@@ -141,7 +141,7 @@ APP_DIR="${RUNTIME_ROOT}/app"
 TOOLS_DIR="${RUNTIME_ROOT}/tools"
 LAUNCHD_LABEL="com.ai.gateway"
 PLIST="/Library/LaunchDaemons/${LAUNCHD_LABEL}.plist"
-HEALTH_URL="http://127.0.0.1:8800/health"
+HEALTH_URL="https://127.0.0.1:8800/health"
 PORT="8800"
 LOG_DIR="/var/log/gateway"
 ERR_LOG="${LOG_DIR}/gateway.err.log"
@@ -149,6 +149,12 @@ OUT_LOG="${LOG_DIR}/gateway.out.log"
 PYTHON_BIN="${RUNTIME_ROOT}/env/bin/python"
 CURL_CONNECT_TIMEOUT_SEC="1"
 CURL_MAX_TIME_SEC="2"
+CURL_TLS_ARGS=()
+if [[ "${HEALTH_URL}" == https://* ]]; then
+  if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
+    CURL_TLS_ARGS=(--insecure)
+  fi
+fi
 
 # ---- safety checks ----
 
@@ -578,7 +584,7 @@ fi
 echo "Waiting for health endpoint..."
 for i in {1..30}; do
   # Add explicit timeouts so a stalled connect/read can't hang the deploy.
-  if curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${HEALTH_URL}" >/dev/null 2>&1; then
+  if curl -fsS "${CURL_TLS_ARGS[@]}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${HEALTH_URL}" >/dev/null 2>&1; then
     echo "OK: health endpoint responds"
     break
   fi
@@ -606,12 +612,12 @@ if [[ -f "${APP_DIR}/app/static/music.html" ]]; then
   MUSIC_URL="http://127.0.0.1:${PORT}/ui/music"
   UI_OK=0
   for i in {1..6}; do
-    if curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" >/dev/null 2>&1; then
+    if curl -fsS "${CURL_TLS_ARGS[@]}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" >/dev/null 2>&1; then
       echo "OK: /ui/music responded"
       UI_OK=1
       break
     else
-      status=$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" || true)
+      status=$(curl -sS "${CURL_TLS_ARGS[@]}" -o /dev/null -w "%{http_code}" --connect-timeout "${CURL_CONNECT_TIMEOUT_SEC}" --max-time "${CURL_MAX_TIME_SEC}" "${MUSIC_URL}" || true)
       if [[ "${status}" == "403" ]]; then
         echo "WARN: /ui/music returned 403 (UI may be disabled or your deploy host is not allowlisted)"
         UI_OK=1
