@@ -8,6 +8,9 @@ const GATEWAY_BEARER_TOKEN = process.env.GATEWAY_BEARER_TOKEN;
 const GATEWAY_MODEL = process.env.GATEWAY_MODEL || 'auto';
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || '';
 const MAX_HISTORY = Number.parseInt(process.env.MAX_HISTORY || '20', 10);
+const TELEGRAM_MAX_MESSAGE = Number.parseInt(process.env.TELEGRAM_MAX_MESSAGE || '3900', 10);
+const LOG_LEVEL = String(process.env.LOG_LEVEL || 'info').toLowerCase();
+const LOG_PREVIEW_CHARS = Number.parseInt(process.env.LOG_PREVIEW_CHARS || '320', 10);
 const GATEWAY_TLS_INSECURE = new Set(['1', 'true', 'yes', 'on']).has(
   String(process.env.GATEWAY_TLS_INSECURE || '').toLowerCase(),
 );
@@ -28,6 +31,14 @@ if (Number.isNaN(MAX_HISTORY) || MAX_HISTORY < 1) {
   throw new Error('MAX_HISTORY must be a positive integer');
 }
 
+if (Number.isNaN(TELEGRAM_MAX_MESSAGE) || TELEGRAM_MAX_MESSAGE < 500) {
+  throw new Error('TELEGRAM_MAX_MESSAGE must be a positive integer >= 500');
+}
+
+if (Number.isNaN(LOG_PREVIEW_CHARS) || LOG_PREVIEW_CHARS < 0) {
+  throw new Error('LOG_PREVIEW_CHARS must be a non-negative integer');
+}
+
 const bot = new Bot(TELEGRAM_TOKEN);
 const histories = new Map();
 
@@ -45,6 +56,47 @@ const COMMANDS = [
 bot.api.setMyCommands(COMMANDS).catch((err) => {
   console.error('Failed to set bot commands:', err.message);
 });
+
+function shouldLog(level) {
+  const levels = ['error', 'warn', 'info', 'debug'];
+  const current = levels.indexOf(LOG_LEVEL);
+  const target = levels.indexOf(level);
+  if (current === -1 || target === -1) {
+    return true;
+  }
+  return target <= current;
+}
+
+function log(level, message, meta = {}) {
+  if (!shouldLog(level)) {
+    return;
+  }
+  const entry = {
+    level,
+    message,
+    time: new Date().toISOString(),
+    ...meta,
+  };
+  const line = JSON.stringify(entry);
+  if (level === 'error') {
+    console.error(line);
+  } else if (level === 'warn') {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
+}
+
+function previewText(text) {
+  const content = String(text || '');
+  if (!LOG_PREVIEW_CHARS) {
+    return undefined;
+  }
+  if (content.length <= LOG_PREVIEW_CHARS) {
+    return content;
+  }
+  return `${content.slice(0, LOG_PREVIEW_CHARS)}…`;
+}
 
 function getHistory(chatId) {
   if (!histories.has(chatId)) {
@@ -72,6 +124,68 @@ function buildHelpText() {
     '',
     'Send any other message to chat with the Gateway.',
   ].join('\n');
+}
+
+function splitMessage(text, maxLen) {
+  const chunks = [];
+  const normalized = String(text || '');
+  if (normalized.length <= maxLen) {
+    return [normalized];
+  }
+
+  const paragraphs = normalized.split(/\n{2,}/);
+  let current = '';
+
+  for (const paragraph of paragraphs) {
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length <= maxLen) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = '';
+    }
+
+    if (paragraph.length <= maxLen) {
+      current = paragraph;
+      continue;
+    }
+
+    let start = 0;
+    while (start < paragraph.length) {
+      chunks.push(paragraph.slice(start, start + maxLen));
+      start += maxLen;
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
+async function replyLongText(ctx, text) {
+  const content = String(text || '');
+  if (!content.trim()) {
+    await ctx.reply('No response content.');
+    return;
+  }
+
+  const chunks = splitMessage(content, TELEGRAM_MAX_MESSAGE);
+  if (chunks.length > 12) {
+    const buffer = Buffer.from(content, 'utf8');
+    await ctx.replyWithDocument(new InputFile(buffer, `chat-${ctx.chat.id}-response.txt`), {
+      caption: 'Response was too long for chat; sending as a file.',
+    });
+    return;
+  }
+
+  for (const chunk of chunks) {
+    await ctx.reply(chunk);
+  }
 }
 
 async function handleHistoryExport(ctx, history) {
@@ -109,16 +223,31 @@ async function queryGateway(history, message) {
     stream: false,
   };
 
-  const res = await axios.post(GATEWAY_URL, payload, {
-    headers: {
-      Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: 60000,
-    httpsAgent: HTTPS_AGENT,
-  });
+  try {
+    const res = await axios.post(GATEWAY_URL, payload, {
+      headers: {
+        Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+      httpsAgent: HTTPS_AGENT,
+    });
 
-  return res.data?.choices?.[0]?.message?.content || '';
+    return res.data?.choices?.[0]?.message?.content || '';
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      log('error', 'Gateway request failed', {
+        error: err.message,
+        code: err.code,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        response: err.response?.data,
+      });
+    } else {
+      log('error', 'Gateway request failed', { error: err?.message || String(err) });
+    }
+    throw err;
+  }
 }
 
 bot.command('start', async (ctx) => {
@@ -171,24 +300,51 @@ bot.on('message:text', async (ctx) => {
     return;
   }
 
+  log('info', 'Incoming Telegram message', {
+    chatId: ctx.chat?.id,
+    userId: ctx.from?.id,
+    username: ctx.from?.username,
+    textPreview: previewText(userText),
+  });
+
   const history = getHistory(ctx.chat.id);
 
-  await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+  try {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing');
+  } catch (err) {
+    log('warn', 'Failed to send chat action', {
+      chatId: ctx.chat?.id,
+      error: err?.message || String(err),
+    });
+  }
 
   try {
     const answer = await queryGateway(history, userText);
     history.push({ role: 'user', content: userText });
     history.push({ role: 'assistant', content: answer });
     histories.set(ctx.chat.id, trimHistory(history));
-    await ctx.reply(answer || 'No response content.');
+    log('info', 'Sending Telegram reply', {
+      chatId: ctx.chat?.id,
+      userId: ctx.from?.id,
+      textPreview: previewText(answer),
+    });
+    await replyLongText(ctx, answer);
   } catch (err) {
-    console.error(`Error for chat ${ctx.chat.id}:`, err.message);
+    log('error', 'Chat handling failed', {
+      chatId: ctx.chat?.id,
+      userId: ctx.from?.id,
+      error: err?.message || String(err),
+    });
     await ctx.reply('Error talking to the gateway.');
   }
 });
 
 bot.catch((err) => {
-  console.error('Bot error:', err.error || err.message || err);
+  const error = err?.error || err?.message || err;
+  log('error', 'Telegram bot error', {
+    error: error?.message || String(error),
+    stack: error?.stack,
+  });
 });
 
 bot.start();
