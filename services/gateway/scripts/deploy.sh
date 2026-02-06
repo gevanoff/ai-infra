@@ -151,6 +151,16 @@ PYTHON_BIN="${RUNTIME_ROOT}/env/bin/python"
 CURL_CONNECT_TIMEOUT_SEC="1"
 CURL_MAX_TIME_SEC="2"
 CURL_TLS_ARGS=()
+ENV_DST="${APP_DIR}/.env"
+if [[ -z "${GATEWAY_TLS_INSECURE:-}" && -f "${ENV_DST}" ]]; then
+  GATEWAY_TLS_INSECURE=$(grep -E '^[[:space:]]*GATEWAY_TLS_INSECURE=' "${ENV_DST}" | head -n 1 | cut -d= -f2- | tr -d '"\r' | xargs || true)
+fi
+case "${GATEWAY_TLS_INSECURE:-}" in
+  1|true|TRUE|True|yes|YES|Yes|on|ON|On)
+    CURL_TLS_ARGS=(--insecure)
+    echo "TLS: curl insecure enabled (GATEWAY_TLS_INSECURE=${GATEWAY_TLS_INSECURE})"
+    ;;
+esac
 
 # ---- safety checks ----
 
