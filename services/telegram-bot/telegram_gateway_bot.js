@@ -251,7 +251,7 @@ async function handleImageCommand(ctx, prompt) {
 
   const res = await axios.post(
     `${GATEWAY_BASE_URL}/v1/images/generations`,
-    { prompt, size: '1024x1024', n: 1, response_format: 'url' },
+    { prompt, size: '1024x1024', n: 1, response_format: 'b64_json' },
     {
       headers: {
         Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
@@ -262,18 +262,16 @@ async function handleImageCommand(ctx, prompt) {
   );
 
   const first = res.data?.data?.[0];
-  const url = first?.url;
-  if (typeof url === 'string' && url.trim()) {
-    const full = buildGatewayUrl(url.trim());
-    const { buffer } = await fetchBinary(full);
-    await ctx.replyWithPhoto(new InputFile(buffer, 'image.png'));
-    return true;
-  }
-
   const b64 = first?.b64_json;
   if (typeof b64 === 'string' && b64.trim()) {
     const buffer = Buffer.from(b64, 'base64');
     await ctx.replyWithPhoto(new InputFile(buffer, 'image.png'));
+    return true;
+  }
+
+  const url = first?.url;
+  if (typeof url === 'string' && url.trim()) {
+    await ctx.reply(`[Image] Generated image URL: ${url.trim()}`);
     return true;
   }
 
