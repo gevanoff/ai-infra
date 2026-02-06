@@ -52,17 +52,10 @@ Edit `/var/lib/telegram-bot/telegram-bot.env`:
 - `GATEWAY_BEARER_TOKEN`: Bearer token for Gateway authentication
 
 ### Optional
-- `GATEWAY_URL`: Gateway endpoint (default: `https://127.0.0.1:8800/v1/chat/completions`)
+- `GATEWAY_PORT`: Gateway port on localhost (default: `8800`). The bot always connects to `https://127.0.0.1`.
 - `GATEWAY_MODEL`: Model to use (default: `auto`)
 - `SYSTEM_PROMPT`: System message prepended to each chat (default: empty)
 - `MAX_HISTORY`: Maximum number of messages to keep in history (default: 20). Note: This is total messages, not user-assistant pairs. System prompts are kept separately.
-- `GATEWAY_TLS_INSECURE`: Disable TLS verification for self-signed certs (`true`/`false`, default: `false`)
-- `GATEWAY_CA_CERT_PATH`: Path to a PEM CA bundle to trust for Gateway TLS
-- `GATEWAY_KEEPALIVE`: Enable keep-alive sockets for Gateway calls (`true`/`false`, default: `true`)
-- `GATEWAY_KEEPALIVE_MSECS`: Keep-alive idle time (ms) before reusing a socket (default: `25000`)
-- `GATEWAY_SOCKET_TIMEOUT_MS`: Socket timeout for Gateway requests (ms, default: `60000`)
-- `GATEWAY_PROXY`: Set to `false` to bypass system proxy env vars for Gateway calls
-- `GATEWAY_HEALTHCHECK_URL`: Optional override for the startup health probe URL. If unset, the bot will probe `/health` only when `GATEWAY_URL` points to localhost.
 - `LOG_LEVEL`: `error|warn|info|debug` (default: `info`)
 - `LOG_PREVIEW_CHARS`: Max characters of message previews in logs (default: `320`)
 - `TELEGRAM_MAX_MESSAGE`: Max message size for replies before chunking (default: `3900`)
@@ -179,7 +172,7 @@ sudo launchctl print system/com.telegram-bot.server
 - The bot runs as a dedicated system user with no login shell
 - Environment file is set to mode 600 (readable only by owner)
 - Tokens are stored in the environment file, not in code
-- Only connects to the configured Gateway URL (localhost by default)
+- The bot connects to `https://127.0.0.1` and expects a valid TLS certificate (install your local CA if using self-signed certs)
 
 ## Troubleshooting
 
@@ -192,13 +185,12 @@ sudo journalctl -u telegram-bot -n 50
 Common issues:
 - Missing or invalid `TELEGRAM_TOKEN`
 - Missing or invalid `GATEWAY_BEARER_TOKEN`
-- TLS errors (set `GATEWAY_TLS_INSECURE=true` only for self-signed local certs)
 - Gateway service not running
 - Node.js dependencies not installed
 
 ### Bot not responding
 1. Check if the bot is running: `sudo systemctl status telegram-bot`
-2. Check Gateway is accessible: `curl -k https://127.0.0.1:8800/health`
+2. Check Gateway is accessible: `curl http://127.0.0.1:8801/health`
 3. Check recent logs: `sudo journalctl -u telegram-bot -n 20`
 
 ### Dependencies missing

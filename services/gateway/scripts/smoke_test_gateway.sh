@@ -11,6 +11,8 @@ require_cmd() {
 require_cmd curl
 
 BASE_URL="${GATEWAY_BASE_URL:-https://127.0.0.1:8800}"
+OBS_PORT="${OBSERVABILITY_PORT:-8801}"
+OBS_URL="${GATEWAY_OBS_URL:-http://127.0.0.1:${OBS_PORT}}"
 TOKEN="${GATEWAY_BEARER_TOKEN:-}"
 CURL_TLS_ARGS=()
 if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
@@ -25,9 +27,10 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 
 echo "Base URL: ${BASE_URL}"
+echo "Observability URL: ${OBS_URL}"
 
 echo "[1/4] GET /health"
-curl -fsS "${CURL_TLS_ARGS[@]}" "${BASE_URL}/health" >/dev/null
+curl -fsS "${OBS_URL}/health" >/dev/null
 
 echo "[2/4] GET /v1/models"
 curl -fsS "${CURL_TLS_ARGS[@]}" "${BASE_URL}/v1/models" \

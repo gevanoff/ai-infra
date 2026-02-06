@@ -19,7 +19,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # Idempotent wrapper:
 # - install.sh is safe to rerun (creates runtime dirs/venv/plist, seeds .env if missing)
-# - deploy.sh is safe to rerun (rsyncs code, restarts service, waits for /health)
+# - deploy.sh is safe to rerun (rsyncs code, restarts service, waits for local HTTP /health)
 # - freeze_release.sh writes a timestamped manifest
 # - appliance_smoketest.sh validates chat stream + embeddings + tool + replay
 

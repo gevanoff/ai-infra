@@ -11,6 +11,8 @@ require_cmd() {
 require_cmd uname
 
 BASE_URL="${GATEWAY_BASE_URL:-https://127.0.0.1:8800}"
+OBS_PORT="${OBSERVABILITY_PORT:-8801}"
+OBS_URL="${GATEWAY_OBS_URL:-http://127.0.0.1:${OBS_PORT}}"
 TOKEN="${GATEWAY_BEARER_TOKEN:-}"
 INSECURE_FLAG=()
 if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
@@ -29,6 +31,7 @@ Runs the gateway comprehensive verifier against an already-running gateway.
 Env:
   GATEWAY_BEARER_TOKEN   (required)
   GATEWAY_BASE_URL       default: ${BASE_URL}
+  GATEWAY_OBS_URL        default: ${OBS_URL}
 
 Flags:
   --require-backend   Fail if no healthy upstreams (Ollama/MLX) are reported.
@@ -117,8 +120,9 @@ if [[ ${REQUIRE_BACKEND} -eq 1 ]]; then
 fi
 
 echo "Base URL: ${BASE_URL}"
+echo "Observability URL: ${OBS_URL}"
 
-if ! "${PYTHON_BIN}" "${SCRIPT_PATH}" --skip-pytest --base-url "${BASE_URL}" --token "${TOKEN}" ${INSECURE_FLAG[@]+"${INSECURE_FLAG[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; then
+if ! "${PYTHON_BIN}" "${SCRIPT_PATH}" --skip-pytest --base-url "${BASE_URL}" --obs-url "${OBS_URL}" --token "${TOKEN}" ${INSECURE_FLAG[@]+"${INSECURE_FLAG[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; then
   echo "" >&2
   echo "Verifier failed. If you see 'Connection refused', the gateway is not currently listening." >&2
   echo "Next: sudo services/gateway/scripts/status.sh" >&2

@@ -141,7 +141,8 @@ APP_DIR="${RUNTIME_ROOT}/app"
 TOOLS_DIR="${RUNTIME_ROOT}/tools"
 LAUNCHD_LABEL="com.ai.gateway"
 PLIST="/Library/LaunchDaemons/${LAUNCHD_LABEL}.plist"
-HEALTH_URL="https://127.0.0.1:8800/health"
+OBS_PORT="${OBSERVABILITY_PORT:-8801}"
+HEALTH_URL="http://127.0.0.1:${OBS_PORT}/health"
 PORT="8800"
 LOG_DIR="/var/log/gateway"
 ERR_LOG="${LOG_DIR}/gateway.err.log"
@@ -150,11 +151,6 @@ PYTHON_BIN="${RUNTIME_ROOT}/env/bin/python"
 CURL_CONNECT_TIMEOUT_SEC="1"
 CURL_MAX_TIME_SEC="2"
 CURL_TLS_ARGS=()
-if [[ "${HEALTH_URL}" == https://* ]]; then
-  if [[ "${GATEWAY_TLS_INSECURE:-}" == "1" || "${GATEWAY_TLS_INSECURE:-}" == "true" ]]; then
-    CURL_TLS_ARGS=(--insecure)
-  fi
-fi
 
 # ---- safety checks ----
 

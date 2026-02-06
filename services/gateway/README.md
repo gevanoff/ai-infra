@@ -34,13 +34,13 @@ Note: `deploy.sh` also creates a convenience symlink so you can run the streamin
 From `services/gateway/scripts/`:
 
 - `install.sh`: Creates runtime dirs + venv, installs the launchd plist, optionally installs Python deps if gateway code is already deployed.
-- `deploy.sh`: Rsyncs the **gateway app source tree** into `/var/lib/gateway/app` and restarts launchd; waits for `/health`.
+- `deploy.sh`: Rsyncs the **gateway app source tree** into `/var/lib/gateway/app` and restarts launchd; waits for the local HTTP `/health` on the observability port.
 - `restart.sh`: Restarts the launchd job.
 - `status.sh`: Shows launchd state + listener + recent logs.
 - `uninstall.sh`: Unloads and removes the plist.
 - `verify.sh`: Comprehensive single-command verification (requires `GATEWAY_BEARER_TOKEN`; can require a healthy backend).
 - `smoke_test.sh`: Alias for `verify.sh`.
-- `smoke_test_gateway.sh`: Hits `/health`, `/v1/models`, `/v1/embeddings`, `/v1/responses` (requires `GATEWAY_BEARER_TOKEN`).
+- `smoke_test_gateway.sh`: Hits local HTTP `/health` plus `/v1/models`, `/v1/embeddings`, `/v1/responses` (requires `GATEWAY_BEARER_TOKEN`).
 
 Appliance helpers:
 
@@ -77,6 +77,8 @@ Plist example: `services/gateway/launchd/com.ai.gateway.plist.example`
 Example env file: `services/gateway/env/gateway.env.example`
 
 You must set `GATEWAY_BEARER_TOKEN` to a secret value in `/var/lib/gateway/app/.env`.
+
+Observability endpoints (`/health`, `/readyz`, `/metrics`, `/health/upstreams`) are served over **local HTTP** on the observability listener (`OBSERVABILITY_HOST`/`OBSERVABILITY_PORT`, default `127.0.0.1:8801`).
 
 ### Security notes (recommended defaults)
 
@@ -331,7 +333,7 @@ Example template:
    - `TOOLS_MAX_CONCURRENT`, `TOOLS_CONCURRENCY_TIMEOUT_SEC`
    - `TOOLS_SUBPROCESS_STDOUT_MAX_CHARS`, `TOOLS_SUBPROCESS_STDERR_MAX_CHARS`
 - Optional rate limiting (disabled by default): `TOOLS_RATE_LIMIT_RPS`, `TOOLS_RATE_LIMIT_BURST`
-- Optional metrics endpoint: `GET /metrics` (bearer-protected, controlled by `METRICS_ENABLED`)
+- Optional metrics endpoint: `GET /metrics` on the local HTTP observability listener (controlled by `METRICS_ENABLED`)
 - Optional registry integrity: `TOOLS_REGISTRY_SHA256` (sha256 hex; mismatches cause registry to be ignored)
 
 ## Typical flow (macOS host)
