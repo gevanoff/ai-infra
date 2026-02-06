@@ -230,6 +230,21 @@ async function fetchBinary(url) {
   return { buffer: Buffer.from(res.data), contentType: res.headers['content-type'] || '' };
 }
 
+function isJsonContentType(contentType) {
+  return String(contentType || '').toLowerCase().includes('application/json');
+}
+
+async function sendAck(ctx, text) {
+  try {
+    await ctx.reply(text);
+  } catch (err) {
+    log('warn', 'Failed to send ack', {
+      chatId: ctx.chat?.id,
+      error: err?.message || String(err),
+    });
+  }
+}
+
 function buildGatewayUrl(path) {
   if (!path) {
     return '';
@@ -285,22 +300,41 @@ async function handleSpeechCommand(ctx, prompt) {
     return true;
   }
 
-  const res = await axios.post(
-    `${GATEWAY_BASE_URL}/v1/audio/speech`,
-    { text: prompt },
-    {
-      headers: {
-        Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: GATEWAY_SOCKET_TIMEOUT_MS,
-      responseType: 'arraybuffer',
+  const res = await axios.post(`${GATEWAY_BASE_URL}/v1/audio/speech`, { text: prompt }, {
+    headers: {
+      Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
+      'Content-Type': 'application/json',
     },
-  );
+    timeout: GATEWAY_SOCKET_TIMEOUT_MS,
+    responseType: 'arraybuffer',
+  });
 
-  const buffer = Buffer.from(res.data);
-  const ext = (res.headers['content-type'] || '').includes('wav') ? 'wav' : 'mp3';
-  await ctx.replyWithVoice(new InputFile(buffer, `speech.${ext}`));
+  const contentType = res.headers['content-type'] || '';
+  if (isJsonContentType(contentType)) {
+    const payload = JSON.parse(Buffer.from(res.data).toString('utf8'));
+    const url = payload?.audio_url || payload?.url;
+    if (url) {
+      const { buffer, contentType: fetchedType } = await fetchBinary(buildGatewayUrl(String(url)));
+      const ext = String(fetchedType || '').includes('wav') ? 'wav' : 'mp3';
+      await ctx.replyWithAudio(new InputFile(buffer, `speech.${ext}`));
+      return true;
+    }
+    await ctx.reply('[Speech] synthesis returned no audio URL.');
+    return true;
+  }
+
+  const buffer = Buffer.from(res.data || []);
+  if (!buffer.length) {
+    await ctx.reply('[Speech] synthesis returned empty audio.');
+    return true;
+  }
+
+  if (String(contentType).includes('ogg')) {
+    await ctx.replyWithVoice(new InputFile(buffer, 'speech.ogg'));
+    return true;
+  }
+  const ext = String(contentType).includes('wav') ? 'wav' : 'mp3';
+  await ctx.replyWithAudio(new InputFile(buffer, `speech.${ext}`));
   return true;
 }
 
@@ -331,6 +365,10 @@ async function handleMusicCommand(ctx, prompt) {
 
   const full = buildGatewayUrl(String(audioUrl));
   const { buffer, contentType } = await fetchBinary(full);
+  if (!buffer.length) {
+    await ctx.reply('[Music] generation returned empty audio.');
+    return true;
+  }
   const ext = contentType.includes('wav') ? 'wav' : 'mp3';
   await ctx.replyWithAudio(new InputFile(buffer, `music.${ext}`));
   return true;
@@ -345,14 +383,17 @@ async function maybeHandleSlashCommand(ctx, text) {
   const lower = raw.toLowerCase();
   if (lower === '/image' || lower.startsWith('/image ')) {
     const prompt = raw.replace(/^\/image\s*/i, '').trim();
+    await sendAck(ctx, 'Generating image…');
     return handleImageCommand(ctx, prompt);
   }
   if (lower === '/speech' || lower.startsWith('/speech ') || lower === '/tts' || lower.startsWith('/tts ')) {
     const prompt = raw.replace(/^\/(speech|tts)\s*/i, '').trim();
+    await sendAck(ctx, 'Synthesizing speech…');
     return handleSpeechCommand(ctx, prompt);
   }
   if (lower === '/music' || lower.startsWith('/music ')) {
     const prompt = raw.replace(/^\/music\s*/i, '').trim();
+    await sendAck(ctx, 'Generating music…');
     return handleMusicCommand(ctx, prompt);
   }
 
