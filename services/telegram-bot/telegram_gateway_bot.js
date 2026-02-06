@@ -297,9 +297,8 @@ bot.command('poll', async (ctx) => {
   await handlePoll(ctx, args);
 });
 
-bot.on('message:text', async (ctx) => {
-  const userText = ctx.message?.text || '';
-
+async function handleIncomingText(ctx, text, source) {
+  const userText = String(text || '');
   if (!userText.trim()) {
     return;
   }
@@ -308,6 +307,7 @@ bot.on('message:text', async (ctx) => {
     chatId: ctx.chat?.id,
     userId: ctx.from?.id,
     username: ctx.from?.username,
+    source,
     textPreview: previewText(userText),
   });
 
@@ -341,6 +341,14 @@ bot.on('message:text', async (ctx) => {
     });
     await ctx.reply('Error talking to the gateway.');
   }
+}
+
+bot.on('message:text', async (ctx) => {
+  await handleIncomingText(ctx, ctx.message?.text, 'message');
+});
+
+bot.on('channel_post:text', async (ctx) => {
+  await handleIncomingText(ctx, ctx.channelPost?.text, 'channel_post');
 });
 
 bot.catch((err) => {

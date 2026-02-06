@@ -187,6 +187,7 @@ Common issues:
 - Missing or invalid `GATEWAY_BEARER_TOKEN`
 - Gateway service not running
 - Node.js dependencies not installed
+- TLS errors with self-signed gateway certs (use `NODE_OPTIONS=--use-system-ca` after trusting the cert, or `NODE_TLS_REJECT_UNAUTHORIZED=0` for insecure TLS)
 
 ### Bot not responding
 1. Check if the bot is running: `sudo systemctl status telegram-bot`
