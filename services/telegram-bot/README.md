@@ -142,6 +142,9 @@ This stops the service, removes files, and deletes the user.
 - `/whoami`: Show your chat membership status
 - `/chatinfo`: Show chat metadata
 - `/poll`: Create a poll using `/poll Question | option 1 | option 2`
+- `/image`: Generate an image from a prompt (e.g., `/image a cozy cabin in snow`)
+- `/speech`: Generate speech audio from text (e.g., `/speech Hello world`)
+- `/music`: Generate music from a prompt (e.g., `/music chill lo-fi beat`)
 
 ## Dependencies
 

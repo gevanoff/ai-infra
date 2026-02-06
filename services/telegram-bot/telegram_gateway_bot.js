@@ -3,7 +3,8 @@ const axios = require('axios');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GATEWAY_PORT = Number.parseInt(process.env.GATEWAY_PORT || '8800', 10);
-const GATEWAY_URL = `https://127.0.0.1:${GATEWAY_PORT}/v1/chat/completions`;
+const GATEWAY_BASE_URL = `https://127.0.0.1:${GATEWAY_PORT}`;
+const GATEWAY_URL = `${GATEWAY_BASE_URL}/v1/chat/completions`;
 const GATEWAY_BEARER_TOKEN = process.env.GATEWAY_BEARER_TOKEN;
 const GATEWAY_MODEL = process.env.GATEWAY_MODEL || 'auto';
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || '';
@@ -53,6 +54,9 @@ const COMMANDS = [
   { command: 'whoami', description: 'Show your chat membership status' },
   { command: 'chatinfo', description: 'Show chat metadata' },
   { command: 'poll', description: 'Create a poll: /poll Question | option 1 | option 2' },
+  { command: 'image', description: 'Generate an image: /image prompt' },
+  { command: 'speech', description: 'Generate speech audio: /speech text' },
+  { command: 'music', description: 'Generate music: /music prompt' },
 ];
 
 bot.api.setMyCommands(COMMANDS).catch((err) => {
@@ -218,6 +222,145 @@ async function handlePoll(ctx, args) {
   await ctx.api.sendPoll(ctx.chat.id, question, options, { is_anonymous: false });
 }
 
+async function fetchBinary(url) {
+  const res = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: GATEWAY_SOCKET_TIMEOUT_MS,
+  });
+  return { buffer: Buffer.from(res.data), contentType: res.headers['content-type'] || '' };
+}
+
+function buildGatewayUrl(path) {
+  if (!path) {
+    return '';
+  }
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  if (!path.startsWith('/')) {
+    return `${GATEWAY_BASE_URL}/${path}`;
+  }
+  return `${GATEWAY_BASE_URL}${path}`;
+}
+
+async function handleImageCommand(ctx, prompt) {
+  if (!prompt.trim()) {
+    await ctx.reply('Usage: /image <prompt>');
+    return true;
+  }
+
+  const res = await axios.post(
+    `${GATEWAY_BASE_URL}/v1/images/generations`,
+    { prompt, size: '1024x1024', n: 1, response_format: 'url' },
+    {
+      headers: {
+        Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: GATEWAY_SOCKET_TIMEOUT_MS,
+    },
+  );
+
+  const first = res.data?.data?.[0];
+  const url = first?.url;
+  if (typeof url === 'string' && url.trim()) {
+    const full = buildGatewayUrl(url.trim());
+    const { buffer } = await fetchBinary(full);
+    await ctx.replyWithPhoto(new InputFile(buffer, 'image.png'));
+    return true;
+  }
+
+  const b64 = first?.b64_json;
+  if (typeof b64 === 'string' && b64.trim()) {
+    const buffer = Buffer.from(b64, 'base64');
+    await ctx.replyWithPhoto(new InputFile(buffer, 'image.png'));
+    return true;
+  }
+
+  await ctx.reply('[Image] generation returned no usable image.');
+  return true;
+}
+
+async function handleSpeechCommand(ctx, prompt) {
+  if (!prompt.trim()) {
+    await ctx.reply('Usage: /speech <text>');
+    return true;
+  }
+
+  const res = await axios.post(
+    `${GATEWAY_BASE_URL}/v1/audio/speech`,
+    { text: prompt },
+    {
+      headers: {
+        Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: GATEWAY_SOCKET_TIMEOUT_MS,
+      responseType: 'arraybuffer',
+    },
+  );
+
+  const buffer = Buffer.from(res.data);
+  const ext = (res.headers['content-type'] || '').includes('wav') ? 'wav' : 'mp3';
+  await ctx.replyWithVoice(new InputFile(buffer, `speech.${ext}`));
+  return true;
+}
+
+async function handleMusicCommand(ctx, prompt) {
+  const style = prompt.trim();
+  if (!style) {
+    await ctx.reply('Usage: /music <prompt>');
+    return true;
+  }
+
+  const res = await axios.post(
+    `${GATEWAY_BASE_URL}/v1/music/generations`,
+    { prompt: style },
+    {
+      headers: {
+        Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: GATEWAY_SOCKET_TIMEOUT_MS,
+    },
+  );
+
+  const audioUrl = res.data?.audio_url;
+  if (!audioUrl) {
+    await ctx.reply('[Music] generation returned no audio URL.');
+    return true;
+  }
+
+  const full = buildGatewayUrl(String(audioUrl));
+  const { buffer, contentType } = await fetchBinary(full);
+  const ext = contentType.includes('wav') ? 'wav' : 'mp3';
+  await ctx.replyWithAudio(new InputFile(buffer, `music.${ext}`));
+  return true;
+}
+
+async function maybeHandleSlashCommand(ctx, text) {
+  const raw = String(text || '').trim();
+  if (!raw.startsWith('/')) {
+    return false;
+  }
+
+  const lower = raw.toLowerCase();
+  if (lower === '/image' || lower.startsWith('/image ')) {
+    const prompt = raw.replace(/^\/image\s*/i, '').trim();
+    return handleImageCommand(ctx, prompt);
+  }
+  if (lower === '/speech' || lower.startsWith('/speech ') || lower === '/tts' || lower.startsWith('/tts ')) {
+    const prompt = raw.replace(/^\/(speech|tts)\s*/i, '').trim();
+    return handleSpeechCommand(ctx, prompt);
+  }
+  if (lower === '/music' || lower.startsWith('/music ')) {
+    const prompt = raw.replace(/^\/music\s*/i, '').trim();
+    return handleMusicCommand(ctx, prompt);
+  }
+
+  return false;
+}
+
 async function queryGateway(history, message) {
   const payload = {
     model: GATEWAY_MODEL,
@@ -323,6 +466,9 @@ async function handleIncomingText(ctx, text, source) {
   }
 
   try {
+    if (await maybeHandleSlashCommand(ctx, userText)) {
+      return;
+    }
     const answer = await queryGateway(history, userText);
     history.push({ role: 'user', content: userText });
     history.push({ role: 'assistant', content: answer });
