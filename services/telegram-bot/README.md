@@ -56,6 +56,16 @@ Edit `/var/lib/telegram-bot/telegram-bot.env`:
 - `GATEWAY_MODEL`: Model to use (default: `auto`)
 - `SYSTEM_PROMPT`: System message prepended to each chat (default: empty)
 - `MAX_HISTORY`: Maximum number of messages to keep in history (default: 20). Note: This is total messages, not user-assistant pairs. System prompts are kept separately.
+- `GATEWAY_TLS_INSECURE`: Disable TLS verification for self-signed certs (`true`/`false`, default: `false`)
+- `GATEWAY_CA_CERT_PATH`: Path to a PEM CA bundle to trust for Gateway TLS
+- `GATEWAY_KEEPALIVE`: Enable keep-alive sockets for Gateway calls (`true`/`false`, default: `true`)
+- `GATEWAY_KEEPALIVE_MSECS`: Keep-alive idle time (ms) before reusing a socket (default: `25000`)
+- `GATEWAY_SOCKET_TIMEOUT_MS`: Socket timeout for Gateway requests (ms, default: `60000`)
+- `GATEWAY_PROXY`: Set to `false` to bypass system proxy env vars for Gateway calls
+- `GATEWAY_HEALTHCHECK_URL`: Optional override for the startup health probe URL. If unset, the bot will probe `/health` only when `GATEWAY_URL` points to localhost.
+- `LOG_LEVEL`: `error|warn|info|debug` (default: `info`)
+- `LOG_PREVIEW_CHARS`: Max characters of message previews in logs (default: `320`)
+- `TELEGRAM_MAX_MESSAGE`: Max message size for replies before chunking (default: `3900`)
 
 ## Usage
 

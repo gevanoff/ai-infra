@@ -1,6 +1,7 @@
 const { Bot, InputFile } = require('grammy');
 const axios = require('axios');
 const https = require('https');
+const fs = require('fs');
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'https://127.0.0.1:8800/v1/chat/completions';
@@ -11,13 +12,35 @@ const MAX_HISTORY = Number.parseInt(process.env.MAX_HISTORY || '20', 10);
 const TELEGRAM_MAX_MESSAGE = Number.parseInt(process.env.TELEGRAM_MAX_MESSAGE || '3900', 10);
 const LOG_LEVEL = String(process.env.LOG_LEVEL || 'info').toLowerCase();
 const LOG_PREVIEW_CHARS = Number.parseInt(process.env.LOG_PREVIEW_CHARS || '320', 10);
+const GATEWAY_CA_CERT_PATH = process.env.GATEWAY_CA_CERT_PATH || '';
+const GATEWAY_KEEPALIVE = !new Set(['0', 'false', 'no', 'off']).has(
+  String(process.env.GATEWAY_KEEPALIVE || 'true').toLowerCase(),
+);
+const GATEWAY_KEEPALIVE_MSECS = Number.parseInt(process.env.GATEWAY_KEEPALIVE_MSECS || '25000', 10);
+const GATEWAY_SOCKET_TIMEOUT_MS = Number.parseInt(process.env.GATEWAY_SOCKET_TIMEOUT_MS || '60000', 10);
+const GATEWAY_PROXY = String(process.env.GATEWAY_PROXY || 'auto').toLowerCase();
+const GATEWAY_HEALTHCHECK_URL = process.env.GATEWAY_HEALTHCHECK_URL || '';
 const GATEWAY_TLS_INSECURE = new Set(['1', 'true', 'yes', 'on']).has(
   String(process.env.GATEWAY_TLS_INSECURE || '').toLowerCase(),
 );
 
-const HTTPS_AGENT = GATEWAY_TLS_INSECURE
-  ? new https.Agent({ rejectUnauthorized: false })
-  : undefined;
+let gatewayCaCert;
+if (GATEWAY_CA_CERT_PATH) {
+  try {
+    gatewayCaCert = fs.readFileSync(GATEWAY_CA_CERT_PATH);
+  } catch (err) {
+    console.error(`Failed to read GATEWAY_CA_CERT_PATH (${GATEWAY_CA_CERT_PATH}):`, err.message);
+    throw err;
+  }
+}
+
+const HTTPS_AGENT = new https.Agent({
+  rejectUnauthorized: !GATEWAY_TLS_INSECURE,
+  ca: gatewayCaCert,
+  keepAlive: GATEWAY_KEEPALIVE,
+  keepAliveMsecs: Number.isNaN(GATEWAY_KEEPALIVE_MSECS) ? 25000 : GATEWAY_KEEPALIVE_MSECS,
+  timeout: Number.isNaN(GATEWAY_SOCKET_TIMEOUT_MS) ? 60000 : GATEWAY_SOCKET_TIMEOUT_MS,
+});
 
 if (!TELEGRAM_TOKEN) {
   throw new Error('Missing TELEGRAM_TOKEN');
@@ -37,6 +60,14 @@ if (Number.isNaN(TELEGRAM_MAX_MESSAGE) || TELEGRAM_MAX_MESSAGE < 500) {
 
 if (Number.isNaN(LOG_PREVIEW_CHARS) || LOG_PREVIEW_CHARS < 0) {
   throw new Error('LOG_PREVIEW_CHARS must be a non-negative integer');
+}
+
+if (Number.isNaN(GATEWAY_KEEPALIVE_MSECS) || GATEWAY_KEEPALIVE_MSECS < 1000) {
+  throw new Error('GATEWAY_KEEPALIVE_MSECS must be a positive integer >= 1000');
+}
+
+if (Number.isNaN(GATEWAY_SOCKET_TIMEOUT_MS) || GATEWAY_SOCKET_TIMEOUT_MS < 1000) {
+  throw new Error('GATEWAY_SOCKET_TIMEOUT_MS must be a positive integer >= 1000');
 }
 
 const bot = new Bot(TELEGRAM_TOKEN);
@@ -96,6 +127,27 @@ function previewText(text) {
     return content;
   }
   return `${content.slice(0, LOG_PREVIEW_CHARS)}…`;
+}
+
+function resolveHealthcheckUrl() {
+  if (GATEWAY_HEALTHCHECK_URL) {
+    return GATEWAY_HEALTHCHECK_URL;
+  }
+
+  try {
+    const url = new URL(GATEWAY_URL);
+    const isLocal = ['127.0.0.1', 'localhost', '::1'].includes(url.hostname);
+    if (!isLocal) {
+      return '';
+    }
+    url.pathname = '/health';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch (err) {
+    log('warn', 'Unable to resolve healthcheck URL', { error: err?.message || String(err) });
+    return '';
+  }
 }
 
 function getHistory(chatId) {
@@ -229,8 +281,9 @@ async function queryGateway(history, message) {
         Authorization: `Bearer ${GATEWAY_BEARER_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      timeout: 60000,
+      timeout: GATEWAY_SOCKET_TIMEOUT_MS,
       httpsAgent: HTTPS_AGENT,
+      proxy: GATEWAY_PROXY === 'false' ? false : undefined,
     });
 
     return res.data?.choices?.[0]?.message?.content || '';
@@ -241,12 +294,43 @@ async function queryGateway(history, message) {
         code: err.code,
         status: err.response?.status,
         statusText: err.response?.statusText,
+        url: err.config?.url,
+        timeout: err.config?.timeout,
+        proxyDisabled: err.config?.proxy === false,
         response: err.response?.data,
       });
     } else {
       log('error', 'Gateway request failed', { error: err?.message || String(err) });
     }
     throw err;
+  }
+}
+
+async function runHealthcheck() {
+  const healthUrl = resolveHealthcheckUrl();
+  if (!healthUrl) {
+    return;
+  }
+
+  try {
+    const res = await axios.get(healthUrl, {
+      timeout: Math.min(GATEWAY_SOCKET_TIMEOUT_MS, 10000),
+      httpsAgent: HTTPS_AGENT,
+      proxy: GATEWAY_PROXY === 'false' ? false : undefined,
+    });
+    log('info', 'Gateway healthcheck ok', { status: res.status, url: healthUrl });
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      log('warn', 'Gateway healthcheck failed', {
+        error: err.message,
+        code: err.code,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        url: err.config?.url,
+      });
+    } else {
+      log('warn', 'Gateway healthcheck failed', { error: err?.message || String(err) });
+    }
   }
 }
 
@@ -347,5 +431,7 @@ bot.catch((err) => {
   });
 });
 
-bot.start();
+runHealthcheck().finally(() => {
+  bot.start();
+});
 console.log('Telegram gateway bot is running.');
