@@ -310,11 +310,22 @@ async function handleSpeechCommand(ctx, prompt) {
   });
 
   const contentType = res.headers['content-type'] || '';
+  const byteLength = res.data ? Buffer.byteLength(res.data) : 0;
+  log('info', 'Speech response metadata', {
+    chatId: ctx.chat?.id,
+    status: res.status,
+    contentType,
+    byteLength,
+  });
   if (isJsonContentType(contentType)) {
     const payload = JSON.parse(Buffer.from(res.data).toString('utf8'));
     const url = payload?.audio_url || payload?.url;
     if (url) {
       const { buffer, contentType: fetchedType } = await fetchBinary(buildGatewayUrl(String(url)));
+      if (!buffer.length) {
+        await ctx.reply('[Speech] synthesis returned empty audio.');
+        return true;
+      }
       const ext = String(fetchedType || '').includes('wav') ? 'wav' : 'mp3';
       await ctx.replyWithAudio(new InputFile(buffer, `speech.${ext}`));
       return true;
@@ -329,10 +340,6 @@ async function handleSpeechCommand(ctx, prompt) {
     return true;
   }
 
-  if (String(contentType).includes('ogg')) {
-    await ctx.replyWithVoice(new InputFile(buffer, 'speech.ogg'));
-    return true;
-  }
   const ext = String(contentType).includes('wav') ? 'wav' : 'mp3';
   await ctx.replyWithAudio(new InputFile(buffer, `speech.${ext}`));
   return true;
