@@ -46,6 +46,17 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _json_env(name: str) -> dict:
+    raw = _env(name)
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _device() -> str:
     device = _env("LUXTTS_DEVICE") or "auto"
     if device != "auto":
@@ -79,9 +90,12 @@ def main() -> None:
     if not text:
         _fail("Request JSON missing 'input' text")
 
-    prompt_audio = _env("LUXTTS_PROMPT_AUDIO") or payload.get("prompt_audio")
+    voice = payload.get("voice") or _env("LUXTTS_VOICE")
+    voice_map = _json_env("LUXTTS_VOICE_MAP_JSON")
+    mapped_prompt = voice_map.get(voice) if isinstance(voice, str) else None
+    prompt_audio = mapped_prompt or _env("LUXTTS_PROMPT_AUDIO") or payload.get("prompt_audio")
     if not prompt_audio:
-        _fail("LUXTTS_PROMPT_AUDIO is not set")
+        _fail("Set LUXTTS_PROMPT_AUDIO or LUXTTS_VOICE_MAP_JSON (for OpenAI voice mapping)")
 
     model_id = _env("LUXTTS_MODEL_ID") or "YatharthS/LuxTTS"
     device = _device()

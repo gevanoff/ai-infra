@@ -46,6 +46,17 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _json_env(name: str) -> dict:
+    raw = _env(name)
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _dtype(value: str) -> torch.dtype:
     value = value.strip().lower()
     if value in {"bf16", "bfloat16"}:
@@ -118,7 +129,20 @@ def main() -> None:
         )
     else:
         language = _env("QWEN3_TTS_LANGUAGE") or "Auto"
-        speaker = payload.get("voice") or _env("QWEN3_TTS_SPEAKER") or "Vivian"
+        default_voice_map = {
+            "alloy": "Vivian",
+            "echo": "Ryan",
+            "fable": "Serena",
+            "onyx": "Aiden",
+            "nova": "Dylan",
+            "shimmer": "Ono_Anna",
+        }
+        voice_map = {**default_voice_map, **_json_env("QWEN3_TTS_VOICE_MAP_JSON")}
+        voice = payload.get("voice")
+        if isinstance(voice, str) and voice:
+            speaker = voice_map.get(voice, voice)
+        else:
+            speaker = _env("QWEN3_TTS_SPEAKER") or "Vivian"
         instruct = _env("QWEN3_TTS_INSTRUCT") or ""
         wavs, sr = model.generate_custom_voice(
             text=text,
