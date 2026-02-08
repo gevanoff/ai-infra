@@ -20,6 +20,7 @@
     <key>EnvironmentVariables</key>
     <dict>
       <key>HOME</key><string>/var/lib/luxtts</string>
+      <key>PATH</key><string>/var/lib/luxtts/venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
       <key>PYTHONUNBUFFERED</key><string>1</string>
     </dict>
 
