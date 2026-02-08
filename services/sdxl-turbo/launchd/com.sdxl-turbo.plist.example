@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.sdxl-turbo</string>
+
+    <key>UserName</key><string>sdxlturbo</string>
+    <key>WorkingDirectory</key><string>/var/lib/sdxl-turbo</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/sdxl-turbo/sdxl-turbo.env 2&gt;/dev/null || true; exec /var/lib/sdxl-turbo/venv/bin/uvicorn sdxl_turbo_server:app --host "${SDXL_TURBO_HOST:-0.0.0.0}" --port "${SDXL_TURBO_PORT:-9950}"</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/sdxl-turbo</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/sdxl-turbo/sdxl-turbo.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/sdxl-turbo/sdxl-turbo.err.log</string>
+  </dict>
+</plist>

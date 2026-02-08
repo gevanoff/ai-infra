@@ -1,0 +1,17 @@
+[Unit]
+Description=Nexa Image Server
+After=network.target
+
+[Service]
+Type=simple
+User=nexa
+Group=nexa
+WorkingDirectory=/var/lib/nexa
+EnvironmentFile=/var/lib/nexa/nexa.env
+ExecStart=/bin/bash -lc "exec nexa serve --host ${NEXA_HOST} --keepalive ${NEXA_KEEPALIVE_SEC}"
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

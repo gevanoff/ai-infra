@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Gateway Bot
+After=network.target
+
+[Service]
+Type=simple
+User=telegram-bot
+Group=telegram-bot
+EnvironmentFile=/var/lib/telegram-bot/telegram-bot.env
+WorkingDirectory=/var/lib/telegram-bot/app
+ExecStart=/usr/bin/node /var/lib/telegram-bot/app/telegram_gateway_bot.js
+Restart=always
+RestartSec=5
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=LightOnOCR FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=lightonocr
+Group=lightonocr
+WorkingDirectory=/var/lib/lighton-ocr
+EnvironmentFile=/etc/lighton-ocr/lighton-ocr.env
+ExecStart=/var/lib/lighton-ocr/venv/bin/uvicorn lighton_ocr_server:app --host ${LIGHTON_OCR_HOST} --port ${LIGHTON_OCR_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

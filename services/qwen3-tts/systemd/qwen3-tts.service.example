@@ -1,0 +1,17 @@
+[Unit]
+Description=Qwen3-TTS FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=qwen3tts
+Group=qwen3tts
+WorkingDirectory=/var/lib/qwen3-tts
+EnvironmentFile=/etc/qwen3-tts/qwen3-tts.env
+ExecStart=/var/lib/qwen3-tts/venv/bin/uvicorn qwen3_tts_server:app --host ${QWEN3_TTS_HOST} --port ${QWEN3_TTS_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

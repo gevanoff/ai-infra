@@ -1,0 +1,17 @@
+[Unit]
+Description=VibeVoice-ASR FastAPI Shim
+After=network.target
+
+[Service]
+Type=simple
+User=vibevoice
+Group=vibevoice
+WorkingDirectory=/var/lib/vibevoice-asr
+EnvironmentFile=/etc/vibevoice-asr/vibevoice-asr.env
+ExecStart=/var/lib/vibevoice-asr/venv/bin/uvicorn vibevoice_asr_server:app --host ${VIBEVOICE_ASR_HOST} --port ${VIBEVOICE_ASR_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

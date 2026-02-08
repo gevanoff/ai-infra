@@ -1,0 +1,16 @@
+[Unit]
+Description=Ollama Model Server
+After=network.target
+
+[Service]
+Type=simple
+User=ollama
+Group=ollama
+EnvironmentFile=/etc/ollama/ollama.env
+ExecStart=/usr/bin/ollama serve
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
