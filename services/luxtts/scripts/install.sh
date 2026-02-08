@@ -47,6 +47,13 @@ install_shim() {
   sudo cp -f "$SHIM_SRC" "${SERVICE_HOME}/lux_tts_server.py"
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/lux_tts_server.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/lux_tts_server.py"
   sudo chmod 644 "${SERVICE_HOME}/lux_tts_server.py"
+
+  if [[ -f "${HERE}/run_luxtts.py" ]]; then
+    sudo mkdir -p "${SERVICE_HOME}/app/scripts"
+    sudo cp -f "${HERE}/run_luxtts.py" "${SERVICE_HOME}/app/scripts/run_luxtts.py"
+    sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/app/scripts/run_luxtts.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/app/scripts/run_luxtts.py"
+    sudo chmod 755 "${SERVICE_HOME}/app/scripts/run_luxtts.py"
+  fi
 }
 
 clone_repo() {
