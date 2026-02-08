@@ -11,7 +11,7 @@
     <array>
       <string>/bin/bash</string>
       <string>-lc</string>
-      <string>source /etc/qwen3-tts/qwen3-tts.env 2&gt;/dev/null || true; exec /var/lib/qwen3-tts/venv/bin/uvicorn qwen3_tts_server:app --host "${QWEN3_TTS_HOST:-127.0.0.1}" --port "${QWEN3_TTS_PORT:-9175}"</string>
+      <string>set -a; source /etc/qwen3-tts/qwen3-tts.env 2&gt;/dev/null || true; set +a; exec /var/lib/qwen3-tts/venv/bin/uvicorn qwen3_tts_server:app --host "${QWEN3_TTS_HOST:-127.0.0.1}" --port "${QWEN3_TTS_PORT:-9175}"</string>
     </array>
 
     <key>RunAtLoad</key><true/>

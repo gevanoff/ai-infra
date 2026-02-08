@@ -11,7 +11,7 @@
     <array>
       <string>/bin/bash</string>
       <string>-lc</string>
-      <string>source /etc/luxtts/luxtts.env 2&gt;/dev/null || true; exec /var/lib/luxtts/venv/bin/uvicorn lux_tts_server:app --host "${LUXTTS_HOST:-127.0.0.1}" --port "${LUXTTS_PORT:-9170}"</string>
+      <string>set -a; source /etc/luxtts/luxtts.env 2&gt;/dev/null || true; set +a; exec /var/lib/luxtts/venv/bin/uvicorn lux_tts_server:app --host "${LUXTTS_HOST:-127.0.0.1}" --port "${LUXTTS_PORT:-9170}"</string>
     </array>
 
     <key>RunAtLoad</key><true/>
