@@ -1,0 +1,16 @@
+[Unit]
+Description=SERVICE_NAME shim
+After=network.target
+
+[Service]
+Type=simple
+User=SERVICE_NAME
+Group=SERVICE_NAME
+WorkingDirectory=/var/lib/SERVICE_NAME
+EnvironmentFile=/var/lib/SERVICE_NAME/SERVICE_NAME.env
+ExecStart=/var/lib/SERVICE_NAME/env/bin/python /var/lib/SERVICE_NAME/shim/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
