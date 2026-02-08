@@ -18,6 +18,14 @@ if [[ $# -gt 0 ]]; then
   exit 2
 fi
 
+if [[ "$EUID" -ne 0 ]]; then
+  if ! command -v sudo >/dev/null 2>&1; then
+    note "ERROR: this installer must run as root (sudo not found)."
+    exit 1
+  fi
+  exec sudo -E bash "$0" "$@"
+fi
+
 OS="$(uname -s 2>/dev/null || echo unknown)"
 SERVICE_USER="${LUXTTS_USER:-luxtts}"
 SERVICE_HOME="${LUXTTS_HOME:-/var/lib/luxtts}"
@@ -131,11 +139,11 @@ if [[ "$OS" == "Darwin" ]]; then
   sudo sed "s/<string>luxtts<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
   sudo chown root:wheel "$DST" 2>/dev/null || sudo chown root:root "$DST"
   sudo chmod 644 "$DST"
-  sudo plutil -lint "$DST" >/dev/null
+  plutil -lint "$DST" >/dev/null
 
-  sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-  sudo launchctl bootstrap system "$DST"
-  sudo launchctl kickstart -k system/"$LABEL"
+  launchctl bootout system/"$LABEL" 2>/dev/null || true
+  launchctl bootstrap system "$DST"
+  launchctl kickstart -k system/"$LABEL"
   exit 0
 fi
 

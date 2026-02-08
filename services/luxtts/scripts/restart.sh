@@ -3,6 +3,14 @@ set -euo pipefail
 
 OS="$(uname -s 2>/dev/null || echo unknown)"
 
+if [[ "$EUID" -ne 0 ]]; then
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "ERROR: this restart script must run as root (sudo not found)." >&2
+    exit 1
+  fi
+  exec sudo -E bash "$0" "$@"
+fi
+
 if [[ "$OS" == "Darwin" ]]; then
   LABEL="com.luxtts.server"
   PLIST="/Library/LaunchDaemons/${LABEL}.plist"
@@ -10,9 +18,16 @@ if [[ "$OS" == "Darwin" ]]; then
     echo "Missing ${PLIST}. Run services/luxtts/scripts/install.sh first." >&2
     exit 1
   fi
-  sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-  sudo launchctl bootstrap system "$PLIST"
-  sudo launchctl kickstart -k system/"$LABEL"
+  launchctl bootout system/"$LABEL" 2>/dev/null || true
+  if ! launchctl bootstrap system "$PLIST"; then
+    if launchctl print system/"$LABEL" >/dev/null 2>&1; then
+      echo "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing." >&2
+    else
+      echo "ERROR: launchctl bootstrap failed for ${LABEL}." >&2
+      exit 1
+    fi
+  fi
+  launchctl kickstart -k system/"$LABEL"
   exit 0
 fi
 

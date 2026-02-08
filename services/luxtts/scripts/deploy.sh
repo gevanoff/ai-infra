@@ -5,6 +5,14 @@ note() {
   echo "$*" >&2
 }
 
+if [[ "$EUID" -ne 0 ]]; then
+  if ! command -v sudo >/dev/null 2>&1; then
+    note "ERROR: this deploy script must run as root (sudo not found)."
+    exit 1
+  fi
+  exec sudo -E bash "$0" "$@"
+fi
+
 SERVICE_USER="${LUXTTS_USER:-luxtts}"
 SERVICE_HOME="${LUXTTS_HOME:-/var/lib/luxtts}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -42,10 +50,17 @@ if [[ "$OS" == "Darwin" ]]; then
     sudo sed "s/<string>luxtts<\/string>/<string>${SERVICE_USER}<\/string>/" "$PLIST_SRC" | sudo tee "$PLIST_DST" >/dev/null
     sudo chown root:wheel "$PLIST_DST" 2>/dev/null || sudo chown root:root "$PLIST_DST"
     sudo chmod 644 "$PLIST_DST"
-    sudo plutil -lint "$PLIST_DST" >/dev/null
-    sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-    sudo launchctl bootstrap system "$PLIST_DST"
-    sudo launchctl kickstart -k system/"$LABEL"
+    plutil -lint "$PLIST_DST" >/dev/null
+    launchctl bootout system/"$LABEL" 2>/dev/null || true
+    if ! launchctl bootstrap system "$PLIST_DST"; then
+      if launchctl print system/"$LABEL" >/dev/null 2>&1; then
+        note "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing."
+      else
+        note "ERROR: launchctl bootstrap failed for ${LABEL}."
+        exit 1
+      fi
+    fi
+    launchctl kickstart -k system/"$LABEL"
   else
     note "WARN: missing launchd plist at ${PLIST_SRC}"
   fi

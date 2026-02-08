@@ -3,9 +3,17 @@ set -euo pipefail
 
 OS="$(uname -s 2>/dev/null || echo unknown)"
 
+if [[ "$EUID" -ne 0 ]]; then
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "ERROR: this uninstall script must run as root (sudo not found)." >&2
+    exit 1
+  fi
+  exec sudo -E bash "$0" "$@"
+fi
+
 if [[ "$OS" == "Darwin" ]]; then
-  sudo launchctl bootout system/com.qwen3-tts.server 2>/dev/null || true
-  sudo rm -f /Library/LaunchDaemons/com.qwen3-tts.server.plist
+  launchctl bootout system/com.qwen3-tts.server 2>/dev/null || true
+  rm -f /Library/LaunchDaemons/com.qwen3-tts.server.plist
   exit 0
 fi
 
