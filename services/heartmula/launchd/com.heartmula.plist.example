@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>com.heartmula</string>
+
+    <key>UserName</key><string>heartmula</string>
+    <key>WorkingDirectory</key><string>/var/lib/heartmula</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>source /etc/heartmula/heartmula.env 2&gt;/dev/null || true; exec /var/lib/heartmula/env/bin/python /var/lib/heartmula/heartmula_server.py</string>
+    </array>
+
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key><string>/var/lib/heartmula</string>
+      <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key><string>/var/log/heartmula/heartmula.out.log</string>
+    <key>StandardErrorPath</key><string>/var/log/heartmula/heartmula.err.log</string>
+  </dict>
+</plist>

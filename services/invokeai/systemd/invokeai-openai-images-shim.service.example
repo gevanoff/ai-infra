@@ -1,0 +1,34 @@
+[Unit]
+Description=InvokeAI OpenAI Images Shim
+After=network.target invokeai.service
+Requires=invokeai.service
+
+[Service]
+Type=simple
+User=invokeai
+Group=invokeai
+WorkingDirectory=/var/lib/invokeai/openai_images_shim
+
+Environment="PATH=/var/lib/invokeai/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="SHIM_PORT=9091"
+
+# Configure the shim via a simple env file instead of systemd drop-in overrides.
+# This file is provisioned by ai-infra deploy/install scripts.
+EnvironmentFile=-/var/lib/invokeai/openai_images_shim/shim.env
+
+# Safe default if the env file is missing.
+Environment="SHIM_MODE=stub"
+
+ExecStart=/var/lib/invokeai/venv/bin/python -m uvicorn openai_images_shim:app --host 127.0.0.1 --port 9091
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/invokeai
+
+[Install]
+WantedBy=multi-user.target

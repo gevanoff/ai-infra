@@ -1,0 +1,17 @@
+[Unit]
+Description=Gateway FastAPI Service
+After=network.target
+
+[Service]
+Type=simple
+User=gateway
+Group=gateway
+WorkingDirectory=/var/lib/gateway/app
+EnvironmentFile=/var/lib/gateway/app/.env
+ExecStart=/var/lib/gateway/env/bin/python -m uvicorn app.main:app --host ${GATEWAY_HOST} --port ${GATEWAY_PORT} --log-config /var/lib/gateway/app/tools/uvicorn_log_config.json
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

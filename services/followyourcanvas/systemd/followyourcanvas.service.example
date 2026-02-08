@@ -1,0 +1,15 @@
+[Unit]
+Description=FollowYourCanvas video generation service
+After=network.target
+
+[Service]
+Type=simple
+User=followyourcanvas
+WorkingDirectory=/var/lib/followyourcanvas/app
+EnvironmentFile=/var/lib/followyourcanvas/followyourcanvas.env
+ExecStart=/bin/bash -lc "${FYC_CMD}"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

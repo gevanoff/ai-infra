@@ -1,0 +1,17 @@
+[Unit]
+Description=MLX OpenAI Server
+After=network.target
+
+[Service]
+Type=simple
+User=mlx
+Group=mlx
+WorkingDirectory=/var/lib/mlx
+EnvironmentFile=/var/lib/mlx/mlx.env
+ExecStart=/var/lib/mlx/env/bin/mlx-openai-server launch --model-path ${MLX_MODEL_PATH} --model-type ${MLX_MODEL_TYPE} --host ${MLX_HOST} --port ${MLX_PORT}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

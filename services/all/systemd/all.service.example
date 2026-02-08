@@ -1,0 +1,10 @@
+[Unit]
+Description=Meta service placeholder (no-op)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/true
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
