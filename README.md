@@ -25,6 +25,10 @@ Each service follows the same pattern:
 - `env/*.env.example` (when applicable): example runtime configuration.
 - `models/manifest.txt` (when applicable): models to pre-pull/enable.
 
+New service scaffolding lives in `services/_template`, and shim API expectations are documented in
+`services/SHIM_API_POLICY.md`. Use the template directory as the starting point for new backends,
+including the standardized `configure.sh` behavior that reconciles runtime config with example files.
+
 ## Prereqs
 
 - Target host: macOS (launchd)
