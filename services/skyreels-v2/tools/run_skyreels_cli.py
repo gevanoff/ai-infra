@@ -66,6 +66,24 @@ def _infer_mode(payload: Dict[str, Any]) -> str:
     return "standard"
 
 
+def _normalize_resolution(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return value
+        lowered = raw.lower()
+        if lowered in {"540p", "540"}:
+            return "540P"
+        if lowered in {"720p", "720"}:
+            return "720P"
+        # Be tolerant of case for values already containing 'p'
+        if lowered.endswith("p") and lowered[:-1].isdigit():
+            return lowered[:-1] + "P"
+    return value
+
+
 def _build_args(payload: Dict[str, Any], outdir: Path) -> List[str]:
     mode = _infer_mode(payload)
     workdir = _env("SKYREELS_WORKDIR", "/var/lib/skyreels-v2/app")
@@ -85,7 +103,7 @@ def _build_args(payload: Dict[str, Any], outdir: Path) -> List[str]:
 
     # Shared required fields
     add_flag("--model_id", payload.get("model_id"))
-    add_flag("--resolution", payload.get("resolution"))
+    add_flag("--resolution", _normalize_resolution(payload.get("resolution")))
     add_flag("--prompt", payload.get("prompt"))
 
     # Media inputs
