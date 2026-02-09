@@ -87,16 +87,59 @@ maybe_patch_env_run_command() {
   fi
   local vpy
   vpy="$(venv_python)"
-  # If the env file explicitly uses system python3 for the runner, rewrite it to the venv python.
-  # This avoids runtime errors like: ModuleNotFoundError: No module named 'PIL'.
-  if grep -qE '^LIGHTON_OCR_RUN_COMMAND=python3\s+scripts/run_lighton_ocr\.py\s*$' "$ENV_FILE"; then
-    note "Patching LIGHTON_OCR_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
-    if command -v perl >/dev/null 2>&1; then
-      sudo perl -pi -e 's/^LIGHTON_OCR_RUN_COMMAND=python3\s+scripts\/run_lighton_ocr\.py\s*$/LIGHTON_OCR_RUN_COMMAND='"${vpy//\//\/}"' scripts\/run_lighton_ocr.py/' "$ENV_FILE"
-    else
-      sudo sed -i.bak "s|^LIGHTON_OCR_RUN_COMMAND=python3 scripts/run_lighton_ocr.py\s*$|LIGHTON_OCR_RUN_COMMAND=${vpy} scripts/run_lighton_ocr.py|" "$ENV_FILE" || true
+  # If the env file uses system python3 for the runner, rewrite it to the venv python.
+  # This avoids runtime errors like: ModuleNotFoundError: No module named 'torch' / 'PIL'.
+  if grep -qE '^LIGHTON_OCR_RUN_COMMAND=.*\bpython3\b.*scripts/run_lighton_ocr\.py.*$' "$ENV_FILE"; then
+    if ! grep -q "${VENV_PATH}/bin/python" "$ENV_FILE"; then
+      note "Patching LIGHTON_OCR_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+      if command -v perl >/dev/null 2>&1; then
+        sudo perl -pi -e 's|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND='"${vpy//\//\/}"' scripts/run_lighton_ocr.py|g' "$ENV_FILE"
+      else
+        sudo sed -i.bak "s|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND=${vpy} scripts/run_lighton_ocr.py|" "$ENV_FILE" || true
+      fi
     fi
   fi
+}
+
+install_torch() {
+  local pip_bin="$VENV_PATH/bin/pip"
+  local -a torch_pip_args
+  torch_pip_args=()
+
+  if [[ -n "${LIGHTON_OCR_TORCH_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--index-url "$LIGHTON_OCR_TORCH_INDEX_URL" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${LIGHTON_OCR_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--extra-index-url "$LIGHTON_OCR_TORCH_EXTRA_INDEX_URL")
+  elif [[ -n "${AI_TORCH_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--index-url "$AI_TORCH_INDEX_URL" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${AI_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--extra-index-url "$AI_TORCH_EXTRA_INDEX_URL")
+  fi
+
+  sudo -u "${SERVICE_USER}" -H "$pip_bin" install "${torch_pip_args[@]}" torch
+}
+
+validate_imports() {
+  local vpy
+  vpy="$(venv_python)"
+  sudo -u "${SERVICE_USER}" -H "$vpy" - <<'PY'
+import importlib
+
+required = ["torch", "transformers", "PIL"]
+missing = []
+for name in required:
+    try:
+        importlib.import_module(name)
+    except Exception as e:
+        missing.append((name, repr(e)))
+
+if missing:
+    lines = ["LightOnOCR venv import check failed:"]
+    lines += [f"- {name}: {err}" for name, err in missing]
+    raise SystemExit("\n".join(lines))
+
+print("LightOnOCR venv import check OK")
+PY
 }
 
 clone_repo() {
@@ -175,11 +218,14 @@ if [[ "$OS" == "Darwin" ]]; then
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
 
+  install_torch
+
   ensure_git_lfs
   clone_repo
   install_runner
   install_requirements_file
   install_requirements
+  validate_imports
   install_env_file
   maybe_patch_env_run_command
   install_shim
@@ -227,11 +273,14 @@ if [[ "$OS" == "Linux" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
 
+    install_torch
+
     ensure_git_lfs
     clone_repo
     install_runner
     install_requirements_file
     install_requirements
+    validate_imports
     install_env_file
     maybe_patch_env_run_command
     install_shim

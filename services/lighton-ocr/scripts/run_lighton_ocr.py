@@ -41,7 +41,14 @@ def _load_image_bytes(request_payload: Dict[str, Any], input_path: Optional[Path
             url = input_path.read_text(encoding="utf-8").strip()
             if not url:
                 raise ValueError("LIGHTON_OCR_INPUT_PATH .url file is empty")
-            with urllib.request.urlopen(url) as resp:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; LightOnOCR/1.0; +https://github.com/gevanoff/ai-infra)",
+                    "Accept": "image/*,*/*;q=0.8",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 return resp.read()
         return input_path.read_bytes()
 
@@ -54,7 +61,14 @@ def _load_image_bytes(request_payload: Dict[str, Any], input_path: Optional[Path
 
     image_url = request_payload.get("image_url")
     if image_url:
-        with urllib.request.urlopen(str(image_url)) as resp:
+        req = urllib.request.Request(
+            str(image_url),
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; LightOnOCR/1.0; +https://github.com/gevanoff/ai-infra)",
+                "Accept": "image/*,*/*;q=0.8",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read()
 
     raise ValueError("No image input provided")
