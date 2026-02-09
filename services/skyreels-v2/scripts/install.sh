@@ -99,7 +99,7 @@ clone_repo() {
     return 0
   fi
   if [[ ! -d "${SERVICE_HOME}/app/.git" ]]; then
-    sudo -u "${SERVICE_USER}" -H git clone "$repo_url" "${SERVICE_HOME}/app" || true
+    sudo -u "${SERVICE_USER}" -H git clone "$repo_url" "${SERVICE_HOME}/app"
   else
     sudo -u "${SERVICE_USER}" -H git -C "${SERVICE_HOME}/app" pull --ff-only || true
   fi
@@ -108,11 +108,92 @@ clone_repo() {
 install_requirements() {
   local req_file="${SERVICE_HOME}/app/requirements.txt"
   if [[ -f "$req_file" ]]; then
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$req_file" || true
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$req_file"
   fi
   if [[ -n "${SKYREELS_PIP_EXTRA:-}" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${SKYREELS_PIP_EXTRA}
   fi
+}
+
+install_runtime_deps() {
+  # Upstream requirements files are not always complete, and failures should not be silent.
+  # Explicitly install the core runtime deps used by the shim + runner + upstream scripts.
+  local pip_bin="$VENV_PATH/bin/pip"
+
+  local -a torch_pip_args
+  torch_pip_args=()
+  if [[ -n "${SKYREELS_TORCH_INDEX_URL:-}" ]]; then
+    # If index-url is overridden, keep PyPI available as an extra index.
+    torch_pip_args+=(--index-url "$SKYREELS_TORCH_INDEX_URL" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${SKYREELS_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--extra-index-url "$SKYREELS_TORCH_EXTRA_INDEX_URL")
+  elif [[ -n "${AI_TORCH_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--index-url "$AI_TORCH_INDEX_URL" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${AI_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--extra-index-url "$AI_TORCH_EXTRA_INDEX_URL")
+  fi
+
+  # torch/torchvision are required at runtime (generate_video.py imports torch).
+  sudo -u "${SERVICE_USER}" -H "$pip_bin" install "${torch_pip_args[@]}" torch torchvision
+
+  # Core runtime deps observed in the upstream SkyReels-V2 scripts.
+  sudo -u "${SERVICE_USER}" -H "$pip_bin" install \
+    diffusers \
+    transformers \
+    huggingface_hub \
+    safetensors \
+    numpy \
+    tqdm \
+    pillow \
+    imageio \
+    einops \
+    decord \
+    ftfy \
+    regex \
+    moviepy
+}
+
+validate_runtime_imports() {
+  local vpy
+  vpy="$(venv_python)"
+  sudo -u "${SERVICE_USER}" -H "$vpy" - <<'PY'
+import importlib
+
+required = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "imageio",
+    "torch",
+    "torchvision",
+    "diffusers",
+    "transformers",
+    "huggingface_hub",
+    "safetensors",
+    "numpy",
+    "tqdm",
+    "PIL",
+    "einops",
+    "decord",
+    "ftfy",
+    "regex",
+    "moviepy",
+]
+
+missing = []
+for name in required:
+    try:
+        importlib.import_module(name)
+    except Exception as e:
+        missing.append((name, repr(e)))
+
+if missing:
+    lines = ["Missing required Python modules:"]
+    lines += [f"- {name}: {err}" for name, err in missing]
+    raise SystemExit("\n".join(lines))
+
+print("SkyReels venv import check OK")
+PY
 }
 
 if [[ "$OS" == "Darwin" ]]; then
@@ -149,10 +230,12 @@ if [[ "$OS" == "Darwin" ]]; then
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx imageio
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
 
   clone_repo
+  install_runtime_deps
   install_requirements
+  validate_runtime_imports
   install_env_file
   maybe_patch_env_run_command
   install_shim
@@ -205,10 +288,12 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx imageio
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
 
     clone_repo
+    install_runtime_deps
     install_requirements
+    validate_runtime_imports
     install_env_file
     maybe_patch_env_run_command
     install_shim

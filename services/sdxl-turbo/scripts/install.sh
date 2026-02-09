@@ -53,11 +53,17 @@ install_python_deps() {
   local torch_pkg
   torch_pkg="${SDXL_TURBO_TORCH_PIP:-torch}"
 
+  local -a torch_pip_args
+  torch_pip_args=()
   if [[ -n "${SDXL_TURBO_TORCH_INDEX_URL:-}" ]]; then
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install "$torch_pkg" --index-url "${SDXL_TURBO_TORCH_INDEX_URL}"
-  else
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install "$torch_pkg"
+    torch_pip_args+=(--index-url "${SDXL_TURBO_TORCH_INDEX_URL}" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${AI_TORCH_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--index-url "${AI_TORCH_INDEX_URL}" --extra-index-url https://pypi.org/simple)
+  elif [[ -n "${AI_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    torch_pip_args+=(--extra-index-url "${AI_TORCH_EXTRA_INDEX_URL}")
   fi
+
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install "${torch_pip_args[@]}" "$torch_pkg"
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -U \
     fastapi "uvicorn[standard]" "diffusers>=0.27.2" "transformers>=4.40.2" accelerate safetensors pillow

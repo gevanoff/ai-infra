@@ -66,6 +66,23 @@ function create_venv_and_install_python_pkgs() {
 
   "$PIP" install --upgrade pip setuptools wheel
 
+  # Optional: allow a fleet-wide override for where to pull torch wheels from.
+  # Examples:
+  #   AI_TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121
+  #   AI_TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+  if [[ -n "${AI_TORCH_INDEX_URL:-}" || -n "${AI_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+    echo "Installing PyTorch from AI_TORCH_* override"
+    if [[ -n "${AI_TORCH_INDEX_URL:-}" ]]; then
+      if [[ -n "${AI_TORCH_EXTRA_INDEX_URL:-}" ]]; then
+        "$PIP" install --index-url "$AI_TORCH_INDEX_URL" --extra-index-url "$AI_TORCH_EXTRA_INDEX_URL" torch torchvision torchaudio
+      else
+        "$PIP" install --index-url "$AI_TORCH_INDEX_URL" torch torchvision torchaudio
+      fi
+    else
+      "$PIP" install --extra-index-url "$AI_TORCH_EXTRA_INDEX_URL" torch torchvision torchaudio
+    fi
+  else
+
   # Attempt to install a CUDA-enabled PyTorch if a GPU is present.
   if check_cuda; then
     echo "Attempting to install GPU-enabled PyTorch (cu118)"
@@ -78,6 +95,8 @@ function create_venv_and_install_python_pkgs() {
   else
     echo "Installing CPU PyTorch wheel"
     "$PIP" install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+  fi
+
   fi
 
   # Install runtime deps

@@ -38,6 +38,19 @@ The shim supports:
 - **Subprocess mode** (`SKYREELS_RUN_COMMAND`): runs a command per request. The command receives
   `SKYREELS_REQUEST_JSON` and `SKYREELS_OUTPUT_DIR`.
 
+## PyTorch wheels (install-time)
+
+Some GPU hosts need a specific PyTorch wheel index (CUDA vs CPU). The installer supports both a
+fleet-wide default and a per-service override.
+
+- Global (all services that opt-in): `AI_TORCH_INDEX_URL` or `AI_TORCH_EXTRA_INDEX_URL`
+- SkyReels-specific override: `SKYREELS_TORCH_INDEX_URL` or `SKYREELS_TORCH_EXTRA_INDEX_URL`
+
+Common values for `*_TORCH_INDEX_URL`:
+
+- CUDA 12.1: `https://download.pytorch.org/whl/cu121`
+- CPU only: `https://download.pytorch.org/whl/cpu`
+
 ## Gateway integration (tool bus)
 
 ```bash

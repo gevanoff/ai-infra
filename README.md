@@ -34,6 +34,22 @@ including the standardized `configure.sh` behavior that reconciles runtime confi
 - Target host: macOS (launchd)
 - Tools: `sudo`, `launchctl`, `plutil` (built-in)
 
+## PyTorch wheel index (optional)
+
+Several GPU-heavy services need PyTorch, and the correct wheel source varies by host (CUDA vs CPU).
+Service installers can opt in to a fleet-wide default via:
+
+- `AI_TORCH_INDEX_URL` (preferred; sets pip `--index-url` for installing `torch`/`torchvision`)
+- `AI_TORCH_EXTRA_INDEX_URL` (optional; adds pip `--extra-index-url`)
+
+Common values:
+
+- CUDA 12.1: `https://download.pytorch.org/whl/cu121`
+- CPU only: `https://download.pytorch.org/whl/cpu`
+
+Some services also support per-service overrides (e.g., `SKYREELS_TORCH_INDEX_URL`) which take
+precedence over `AI_TORCH_*`.
+
 ## Gateway
 
 Gateway has a dedicated deploy step because it ships code:
