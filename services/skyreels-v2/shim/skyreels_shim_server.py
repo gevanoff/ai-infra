@@ -150,18 +150,32 @@ async def generate_videos(payload: Dict[str, Any]) -> Any:
     start = time.time()
 
     async with _semaphore:
-        proc = await asyncio.create_subprocess_exec(
-            "/bin/bash",
-            "-lc",
-            cmd,
-            cwd=_workdir(),
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        stdout_f = stdout_path.open("wb")
+        stderr_f = stderr_path.open("wb")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "/bin/bash",
+                "-lc",
+                cmd,
+                cwd=_workdir(),
+                env=env,
+                stdout=stdout_f,
+                stderr=stderr_f,
+            )
+        finally:
+            try:
+                stdout_f.flush()
+            except Exception:
+                pass
+            try:
+                stderr_f.flush()
+            except Exception:
+                pass
+            stdout_f.close()
+            stderr_f.close()
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=float(_timeout_sec()))
+            await asyncio.wait_for(proc.wait(), timeout=float(_timeout_sec()))
         except TimeoutError:
             try:
                 proc.terminate()
@@ -189,9 +203,6 @@ async def generate_videos(payload: Dict[str, Any]) -> Any:
                     "stderr": str(stderr_path),
                 },
             )
-
-        stdout_path.write_bytes(stdout_bytes or b"")
-        stderr_path.write_bytes(stderr_bytes or b"")
 
         if proc.returncode != 0:
             raise HTTPException(

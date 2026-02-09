@@ -62,12 +62,18 @@ install_shim() {
 
 install_requirements_file() {
   if [[ ! -f "$REQ_FILE" ]]; then
-    note "WARN: pinned requirements not found at ${REQ_FILE}"
-    return 0
+    note "ERROR: pinned requirements not found at ${REQ_FILE}"
+    note "This file is required to install LightOnOCR runtime deps (transformers/pillow/etc)."
+    exit 1
   fi
   sudo cp -f "$REQ_FILE" "${SERVICE_HOME}/requirements.txt"
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/requirements.txt" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/requirements.txt"
   sudo chmod 644 "${SERVICE_HOME}/requirements.txt"
+
+  if [[ ! -s "${SERVICE_HOME}/requirements.txt" ]]; then
+    note "ERROR: failed to install pinned requirements into ${SERVICE_HOME}/requirements.txt (file missing/empty)"
+    exit 1
+  fi
 }
 
 install_runner() {
@@ -170,14 +176,21 @@ ensure_git_lfs() {
 }
 
 install_requirements() {
-  if [[ -f "${SERVICE_HOME}/requirements.txt" ]]; then
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "${SERVICE_HOME}/requirements.txt"
+  if [[ ! -f "${SERVICE_HOME}/requirements.txt" ]]; then
+    note "ERROR: ${SERVICE_HOME}/requirements.txt not found (pinned requirements were not copied)"
+    exit 1
   fi
+
+  note "Installing pinned requirements: ${SERVICE_HOME}/requirements.txt"
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "${SERVICE_HOME}/requirements.txt"
+
   local req_file="${SERVICE_HOME}/app/requirements.txt"
   if [[ -f "$req_file" ]]; then
+    note "Installing upstream requirements: ${req_file}"
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$req_file" || true
   fi
   if [[ -n "${LIGHTON_OCR_PIP_EXTRA:-}" ]]; then
+    note "Installing extra pip packages from LIGHTON_OCR_PIP_EXTRA"
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${LIGHTON_OCR_PIP_EXTRA}
   fi
 }
