@@ -111,12 +111,15 @@ maybe_patch_env_run_command() {
   fi
   local vpy
   vpy="$(venv_python)"
-  if grep -qE '^LUXTTS_RUN_COMMAND=python3\s+scripts/run_luxtts\.py\s*$' "$ENV_FILE"; then
-    note "Patching LUXTTS_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
-    if command -v perl >/dev/null 2>&1; then
-      sudo perl -pi -e 's/^LUXTTS_RUN_COMMAND=python3\s+scripts\/run_luxtts\.py\s*$/LUXTTS_RUN_COMMAND='"${vpy//\//\/}"' \/var\/lib\/luxtts\/app\/scripts\/run_luxtts.py/' "$ENV_FILE"
-    else
-      sudo sed -i.bak "s|^LUXTTS_RUN_COMMAND=python3 scripts/run_luxtts.py\s*$|LUXTTS_RUN_COMMAND=${vpy} /var/lib/luxtts/app/scripts/run_luxtts.py|" "$ENV_FILE" || true
+  local runner_path="${SERVICE_HOME}/app/scripts/run_luxtts.py"
+  if grep -qE '^LUXTTS_RUN_COMMAND=.*run_luxtts\.py' "$ENV_FILE"; then
+    if ! grep -q "${VENV_PATH}/bin/python" "$ENV_FILE"; then
+      note "Patching LUXTTS_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+      if command -v perl >/dev/null 2>&1; then
+        sudo perl -pi -e 's|^LUXTTS_RUN_COMMAND=.*run_luxtts\.py.*$|LUXTTS_RUN_COMMAND='"${vpy//\//\/}"' '"${runner_path//\//\/}"'|g' "$ENV_FILE"
+      else
+        sudo sed -i.bak "s|^LUXTTS_RUN_COMMAND=.*run_luxtts.py.*$|LUXTTS_RUN_COMMAND=${vpy} ${runner_path}|" "$ENV_FILE" || true
+      fi
     fi
   fi
 }
@@ -213,21 +216,25 @@ if [[ "$OS" == "Darwin" ]]; then
   maybe_patch_env_run_command
   install_shim
 
-  sudo sed "s/<string>luxtts<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
-  sudo chown root:wheel "$DST" 2>/dev/null || sudo chown root:root "$DST"
-  sudo chmod 644 "$DST"
-  plutil -lint "$DST" >/dev/null
+  if [[ -f "$SRC" ]]; then
+    sudo sed "s/<string>luxtts<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
+    sudo chown root:wheel "$DST" 2>/dev/null || sudo chown root:root "$DST"
+    sudo chmod 644 "$DST"
+    plutil -lint "$DST" >/dev/null
 
-  launchctl bootout system/"$LABEL" 2>/dev/null || true
-  if ! launchctl bootstrap system "$DST"; then
-    if launchctl print system/"$LABEL" >/dev/null 2>&1; then
-      note "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing."
-    else
-      note "ERROR: launchctl bootstrap failed for ${LABEL}."
-      exit 1
+    launchctl bootout system/"$LABEL" 2>/dev/null || true
+    if ! launchctl bootstrap system "$DST"; then
+      if launchctl print system/"$LABEL" >/dev/null 2>&1; then
+        note "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing."
+      else
+        note "ERROR: launchctl bootstrap failed for ${LABEL}."
+        exit 1
+      fi
     fi
+    launchctl kickstart -k system/"$LABEL"
+  else
+    note "WARN: missing launchd plist at ${SRC}"
   fi
-  launchctl kickstart -k system/"$LABEL"
   exit 0
 fi
 

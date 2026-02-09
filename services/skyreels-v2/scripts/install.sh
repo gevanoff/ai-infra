@@ -30,6 +30,34 @@ TOOLS_COMPAT_SRC="${HERE}/../tools/run_skyreels.py"
 ENV_TEMPLATE="${HERE}/../env/skyreels-v2.env.example"
 REPO_URL_DEFAULT="https://github.com/SkyworkAI/SkyReels-V2"
 
+venv_python() {
+  if [[ -x "${VENV_PATH}/bin/python3" ]]; then
+    echo "${VENV_PATH}/bin/python3"
+  else
+    echo "${VENV_PATH}/bin/python"
+  fi
+}
+
+maybe_patch_env_run_command() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return 0
+  fi
+  local vpy
+  vpy="$(venv_python)"
+  # If subprocess mode is configured, force venv python so deps (e.g. imageio) are found.
+  if grep -qE '^SKYREELS_RUN_COMMAND=.*run_skyreels(_cli)?\.py' "$ENV_FILE"; then
+    if ! grep -q "${VENV_PATH}/bin/python" "$ENV_FILE"; then
+      note "Patching SKYREELS_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+      local runner_path="${SERVICE_HOME}/tools/run_skyreels_cli.py"
+      if command -v perl >/dev/null 2>&1; then
+        sudo perl -pi -e 's|^SKYREELS_RUN_COMMAND=.*run_skyreels(_cli)?\.py.*$|SKYREELS_RUN_COMMAND='"${vpy//\//\/}"' '"${runner_path//\//\/}"'|g' "$ENV_FILE"
+      else
+        sudo sed -i.bak "s|^SKYREELS_RUN_COMMAND=.*run_skyreels\(_cli\)\?\.py.*$|SKYREELS_RUN_COMMAND=${vpy} ${runner_path}|" "$ENV_FILE" || true
+      fi
+    fi
+  fi
+}
+
 install_env_file() {
   if [[ -f "$ENV_FILE" ]]; then
     note "Env file already exists at ${ENV_FILE}"
@@ -126,6 +154,7 @@ if [[ "$OS" == "Darwin" ]]; then
   clone_repo
   install_requirements
   install_env_file
+  maybe_patch_env_run_command
   install_shim
 
   sudo sed "s/<string>skyreels<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
@@ -133,9 +162,16 @@ if [[ "$OS" == "Darwin" ]]; then
   sudo chmod 644 "$DST"
   sudo plutil -lint "$DST" >/dev/null
 
-  sudo launchctl bootout system/"$LABEL" 2>/dev/null || true
-  sudo launchctl bootstrap system "$DST"
-  sudo launchctl kickstart -k system/"$LABEL"
+  launchctl bootout system/"$LABEL" 2>/dev/null || true
+  if ! launchctl bootstrap system "$DST"; then
+    if launchctl print system/"$LABEL" >/dev/null 2>&1; then
+      note "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing."
+    else
+      note "ERROR: launchctl bootstrap failed for ${LABEL}."
+      exit 1
+    fi
+  fi
+  launchctl kickstart -k system/"$LABEL"
   exit 0
 fi
 
@@ -174,6 +210,7 @@ if [[ "$OS" == "Linux" ]]; then
     clone_repo
     install_requirements
     install_env_file
+    maybe_patch_env_run_command
     install_shim
 
     SERVICE_UNIT_SRC="${HERE}/../systemd/skyreels-v2.service"
