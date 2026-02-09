@@ -77,8 +77,22 @@ install_env_file() {
 
 ensure_libsndfile() {
   if [[ "$OS" == "Darwin" ]]; then
+    local brew_bin=""
     if command -v brew >/dev/null 2>&1; then
-      brew list libsndfile >/dev/null 2>&1 || brew install libsndfile
+      brew_bin="$(command -v brew)"
+    elif [[ -x /opt/homebrew/bin/brew ]]; then
+      brew_bin="/opt/homebrew/bin/brew"
+    elif [[ -x /usr/local/bin/brew ]]; then
+      brew_bin="/usr/local/bin/brew"
+    fi
+
+    if [[ -n "$brew_bin" ]]; then
+      # Homebrew refuses to run as root; use the invoking user when available.
+      if [[ "${EUID:-0}" -eq 0 && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        sudo -u "${SUDO_USER}" -H "$brew_bin" list libsndfile >/dev/null 2>&1 || sudo -u "${SUDO_USER}" -H "$brew_bin" install libsndfile
+      else
+        "$brew_bin" list libsndfile >/dev/null 2>&1 || "$brew_bin" install libsndfile
+      fi
     fi
     return 0
   fi
