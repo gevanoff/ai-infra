@@ -133,7 +133,7 @@ validate_imports() {
   sudo -u "${SERVICE_USER}" -H "$vpy" - <<'PY'
 import importlib
 
-required = ["torch", "numpy", "transformers", "PIL", "protobuf", "sentencepiece", "safetensors"]
+required = ["torch", "numpy", "transformers", "PIL", "google.protobuf", "sentencepiece", "safetensors"]
 missing = []
 for name in required:
     try:
