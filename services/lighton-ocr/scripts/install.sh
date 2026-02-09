@@ -70,7 +70,9 @@ install_requirements_file() {
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/requirements.txt" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/requirements.txt"
   sudo chmod 644 "${SERVICE_HOME}/requirements.txt"
 
-  if [[ ! -s "${SERVICE_HOME}/requirements.txt" ]]; then
+  # Note: ${SERVICE_HOME} is chmod 750 and owned by ${SERVICE_USER}.
+  # The invoking user may not be able to stat files there without sudo.
+  if ! sudo test -s "${SERVICE_HOME}/requirements.txt"; then
     note "ERROR: failed to install pinned requirements into ${SERVICE_HOME}/requirements.txt (file missing/empty)"
     exit 1
   fi
@@ -176,8 +178,12 @@ ensure_git_lfs() {
 }
 
 install_requirements() {
-  if [[ ! -f "${SERVICE_HOME}/requirements.txt" ]]; then
+  if ! sudo test -f "${SERVICE_HOME}/requirements.txt"; then
     note "ERROR: ${SERVICE_HOME}/requirements.txt not found (pinned requirements were not copied)"
+    exit 1
+  fi
+  if ! sudo test -s "${SERVICE_HOME}/requirements.txt"; then
+    note "ERROR: ${SERVICE_HOME}/requirements.txt is empty"
     exit 1
   fi
 
