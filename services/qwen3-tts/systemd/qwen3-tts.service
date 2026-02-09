@@ -8,10 +8,17 @@ User=qwen3tts
 Group=qwen3tts
 WorkingDirectory=/var/lib/qwen3-tts
 EnvironmentFile=/etc/qwen3-tts/qwen3-tts.env
+Environment="PATH=/var/lib/qwen3-tts/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/var/lib/qwen3-tts/venv"
 ExecStart=/var/lib/qwen3-tts/venv/bin/uvicorn qwen3_tts_server:app --host ${QWEN3_TTS_HOST} --port ${QWEN3_TTS_PORT}
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/qwen3-tts /var/log/qwen3-tts
 
 [Install]
 WantedBy=multi-user.target
