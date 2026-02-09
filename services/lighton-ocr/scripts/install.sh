@@ -95,15 +95,16 @@ maybe_patch_env_run_command() {
   fi
   local vpy
   vpy="$(venv_python)"
-  # If the env file uses system python3 for the runner, rewrite it to the venv python.
+  # If the env file runs the OCR runner with system python (python/python3), rewrite it to the venv python.
   # This avoids runtime errors like: ModuleNotFoundError: No module named 'torch' / 'PIL'.
-  if grep -qE '^LIGHTON_OCR_RUN_COMMAND=.*\bpython3\b.*scripts/run_lighton_ocr\.py.*$' "$ENV_FILE"; then
+  if grep -qE '^LIGHTON_OCR_RUN_COMMAND=.*run_lighton_ocr\.py.*$' "$ENV_FILE"; then
     if ! grep -q "${VENV_PATH}/bin/python" "$ENV_FILE"; then
       note "Patching LIGHTON_OCR_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+      # Always quote the value because it contains spaces.
       if command -v perl >/dev/null 2>&1; then
-        sudo perl -pi -e 's|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND='"${vpy//\//\/}"' scripts/run_lighton_ocr.py|g' "$ENV_FILE"
+        sudo perl -pi -e 's|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND="'"${vpy//\//\/}"' scripts/run_lighton_ocr.py"|g' "$ENV_FILE"
       else
-        sudo sed -i.bak "s|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND=${vpy} scripts/run_lighton_ocr.py|" "$ENV_FILE" || true
+        sudo sed -i.bak "s|^LIGHTON_OCR_RUN_COMMAND=.*$|LIGHTON_OCR_RUN_COMMAND=\"${vpy} scripts/run_lighton_ocr.py\"|" "$ENV_FILE" || true
       fi
     fi
   fi
