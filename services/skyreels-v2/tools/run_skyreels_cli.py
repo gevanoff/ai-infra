@@ -74,7 +74,9 @@ def _build_args(payload: Dict[str, Any], outdir: Path) -> List[str]:
     if not script_path.exists():
         raise RuntimeError(f"Missing SkyReels script: {script_path}")
 
-    args: List[str] = ["python3", str(script_path)]
+    # Use the same interpreter running this wrapper (typically the service venv).
+    # Hardcoding "python3" can accidentally use system Python and miss venv deps.
+    args: List[str] = [sys.executable, str(script_path)]
 
     def add_flag(flag: str, value: Any) -> None:
         if value is None or value == "":
