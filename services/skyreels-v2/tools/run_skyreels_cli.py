@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -158,6 +159,24 @@ def _collect_outputs(outdir: Path, workdir: Path) -> None:
     shutil.copy2(latest, outdir / latest.name)
 
 
+def _list_videos(outdir: Path) -> List[str]:
+    videos = [*outdir.glob("*.mp4"), *outdir.glob("*.webm")]
+    videos.sort(key=lambda p: p.name)
+    return [p.name for p in videos]
+
+
+def _write_result(outdir: Path, payload: Dict[str, Any], args: List[str], returncode: int, status: str) -> None:
+    result = {
+        "status": status,
+        "returncode": returncode,
+        "timestamp": int(time.time()),
+        "args": args,
+        "payload_keys": sorted([str(k) for k in payload.keys()]),
+        "videos": _list_videos(outdir),
+    }
+    (outdir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     request_json = _env("SKYREELS_REQUEST_JSON")
     output_dir = _env("SKYREELS_OUTPUT_DIR", "/var/lib/skyreels-v2/out")
@@ -172,9 +191,20 @@ def main() -> int:
     args = _build_args(payload, outdir)
     proc = subprocess.run(args, cwd=str(workdir))
     if proc.returncode != 0:
+        _write_result(outdir, payload, args, int(proc.returncode), status="error")
         raise SystemExit(proc.returncode)
 
     _collect_outputs(outdir, workdir)
+
+    videos = _list_videos(outdir)
+    if not videos:
+        _write_result(outdir, payload, args, 0, status="no_output")
+        sys.stderr.write(
+            "SkyReels wrapper: subprocess returned 0 but no .mp4/.webm found in output_dir; see result.json\n"
+        )
+        raise SystemExit(2)
+
+    _write_result(outdir, payload, args, 0, status="ok")
     return 0
 
 
