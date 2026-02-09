@@ -51,6 +51,16 @@ install_shim() {
   sudo chmod 644 "${SERVICE_HOME}/lighton_ocr_server.py"
 }
 
+install_requirements_file() {
+  if [[ ! -f "$REQ_FILE" ]]; then
+    note "WARN: pinned requirements not found at ${REQ_FILE}"
+    return 0
+  fi
+  sudo cp -f "$REQ_FILE" "${SERVICE_HOME}/requirements.txt"
+  sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/requirements.txt" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/requirements.txt"
+  sudo chmod 644 "${SERVICE_HOME}/requirements.txt"
+}
+
 clone_repo() {
   local repo_url
   repo_url="${LIGHTON_OCR_REPO_URL:-$REPO_URL_DEFAULT}"
@@ -79,8 +89,8 @@ ensure_git_lfs() {
 }
 
 install_requirements() {
-  if [[ -f "$REQ_FILE" ]]; then
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$REQ_FILE"
+  if [[ -f "${SERVICE_HOME}/requirements.txt" ]]; then
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "${SERVICE_HOME}/requirements.txt"
   fi
   local req_file="${SERVICE_HOME}/app/requirements.txt"
   if [[ -f "$req_file" ]]; then
@@ -129,6 +139,7 @@ if [[ "$OS" == "Darwin" ]]; then
 
   ensure_git_lfs
   clone_repo
+  install_requirements_file
   install_requirements
   install_env_file
   install_shim
@@ -178,6 +189,7 @@ if [[ "$OS" == "Linux" ]]; then
 
     ensure_git_lfs
     clone_repo
+    install_requirements_file
     install_requirements
     install_env_file
     install_shim
