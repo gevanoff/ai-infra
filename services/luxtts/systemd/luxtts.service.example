@@ -8,10 +8,17 @@ User=luxtts
 Group=luxtts
 WorkingDirectory=/var/lib/luxtts
 EnvironmentFile=/etc/luxtts/luxtts.env
+Environment="PATH=/var/lib/luxtts/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/var/lib/luxtts/venv"
 ExecStart=/var/lib/luxtts/venv/bin/uvicorn lux_tts_server:app --host ${LUXTTS_HOST} --port ${LUXTTS_PORT}
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/luxtts /var/log/luxtts
 
 [Install]
 WantedBy=multi-user.target

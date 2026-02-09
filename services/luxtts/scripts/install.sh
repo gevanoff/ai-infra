@@ -35,6 +35,34 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../lux_tts_server.py"
 ENV_TEMPLATE="${HERE}/../env/luxtts.env.example"
 REPO_URL_DEFAULT="https://github.com/ysharma3501/LuxTTS"
+VENV_PY=""
+
+venv_python() {
+  if [[ -n "$VENV_PY" ]]; then
+    echo "$VENV_PY"
+    return 0
+  fi
+  if [[ -x "${VENV_PATH}/bin/python3" ]]; then
+    VENV_PY="${VENV_PATH}/bin/python3"
+  else
+    VENV_PY="${VENV_PATH}/bin/python"
+  fi
+  echo "$VENV_PY"
+}
+
+ensure_venv_package() {
+  local pkg="$1"
+  local venv_py
+  venv_py="$(venv_python)"
+  if ! sudo -u "${SERVICE_USER}" -H "$venv_py" - <<PY >/dev/null 2>&1
+import importlib
+import sys
+sys.exit(0 if importlib.util.find_spec("${pkg}") else 1)
+PY
+  then
+    sudo -u "${SERVICE_USER}" -H "$venv_py" -m pip install "${pkg}"
+  fi
+}
 
 install_env_file() {
   if [[ -f "$ENV_FILE" ]]; then
@@ -129,7 +157,8 @@ if [[ "$OS" == "Darwin" ]]; then
   fi
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx soundfile
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+  ensure_venv_package "soundfile"
 
   clone_repo
   install_requirements
@@ -177,7 +206,8 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
-    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx soundfile
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+    ensure_venv_package "soundfile"
 
     clone_repo
     install_requirements
