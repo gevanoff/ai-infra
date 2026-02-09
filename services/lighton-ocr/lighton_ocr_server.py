@@ -95,11 +95,12 @@ def health() -> Dict[str, Any]:
 
 @app.get("/v1/models")
 def models() -> Dict[str, Any]:
+    model_id = _env("LIGHTON_OCR_MODEL_ID", "lightonai/LightOnOCR-2-1B")
     return {
         "object": "list",
         "data": [
             {
-                "id": _env("LIGHTON_OCR_MODEL", "lighton-ocr-2-1b"),
+                "id": model_id,
                 "object": "model",
                 "owned_by": "lightonai",
             }

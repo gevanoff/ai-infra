@@ -27,6 +27,7 @@ ENV_FILE="/etc/lighton-ocr/lighton-ocr.env"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../lighton_ocr_server.py"
 ENV_TEMPLATE="${HERE}/../env/lighton-ocr.env.example"
+REQ_FILE="${HERE}/../requirements.txt"
 REPO_URL_DEFAULT="https://huggingface.co/lightonai/LightOnOCR-2-1B"
 
 install_env_file() {
@@ -78,6 +79,9 @@ ensure_git_lfs() {
 }
 
 install_requirements() {
+  if [[ -f "$REQ_FILE" ]]; then
+    sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$REQ_FILE"
+  fi
   local req_file="${SERVICE_HOME}/app/requirements.txt"
   if [[ -f "$req_file" ]]; then
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$req_file" || true
