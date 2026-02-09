@@ -9,6 +9,7 @@ SERVICE_USER="${LIGHTON_OCR_USER:-lightonocr}"
 SERVICE_HOME="${LIGHTON_OCR_HOME:-/var/lib/lighton-ocr}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../lighton_ocr_server.py"
+RUNNER_SRC="${HERE}/../scripts/run_lighton_ocr.py"
 
 if [[ ! -f "$SHIM_SRC" ]]; then
   note "ERROR: lighton_ocr_server.py not found at ${SHIM_SRC}"
@@ -20,6 +21,15 @@ if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/lighton_ocr_server.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/lighton_ocr_server.py"
 fi
 sudo chmod 644 "${SERVICE_HOME}/lighton_ocr_server.py"
+
+if [[ -f "$RUNNER_SRC" ]]; then
+  sudo mkdir -p "${SERVICE_HOME}/app/scripts"
+  sudo cp -f "$RUNNER_SRC" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+  if id -u "${SERVICE_USER}" >/dev/null 2>&1; then
+    sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+  fi
+  sudo chmod 755 "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+fi
 
 if [[ -d "${SERVICE_HOME}/app/.git" ]]; then
   sudo -u "${SERVICE_USER}" -H git -C "${SERVICE_HOME}/app" pull --ff-only || true

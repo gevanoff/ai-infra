@@ -52,6 +52,7 @@ Subprocess helper:
 - `scripts/run_lighton_ocr.py` is a basic runner that uses `transformers` + `Pillow`.
 - Configure the model with `LIGHTON_OCR_MODEL_ID` (default: `lightonai/LightOnOCR-2-1B`).
 - Ensure the venv has `torch`, `transformers`, and `pillow` installed.
+- The installer copies the runner to `/var/lib/lighton-ocr/app/scripts/run_lighton_ocr.py`.
 
 Model env var:
 - `LIGHTON_OCR_MODEL_ID` is the single source of truth. It drives both the `/v1/models` response and the subprocess runner model.

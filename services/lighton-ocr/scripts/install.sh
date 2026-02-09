@@ -28,6 +28,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SHIM_SRC="${HERE}/../lighton_ocr_server.py"
 ENV_TEMPLATE="${HERE}/../env/lighton-ocr.env.example"
 REQ_FILE="${HERE}/../requirements.txt"
+RUNNER_SRC="${HERE}/../scripts/run_lighton_ocr.py"
 REPO_URL_DEFAULT="https://huggingface.co/lightonai/LightOnOCR-2-1B"
 
 install_env_file() {
@@ -59,6 +60,17 @@ install_requirements_file() {
   sudo cp -f "$REQ_FILE" "${SERVICE_HOME}/requirements.txt"
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/requirements.txt" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/requirements.txt"
   sudo chmod 644 "${SERVICE_HOME}/requirements.txt"
+}
+
+install_runner() {
+  if [[ ! -f "$RUNNER_SRC" ]]; then
+    note "WARN: runner not found at ${RUNNER_SRC}"
+    return 0
+  fi
+  sudo mkdir -p "${SERVICE_HOME}/app/scripts"
+  sudo cp -f "$RUNNER_SRC" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+  sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+  sudo chmod 755 "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
 }
 
 clone_repo() {
@@ -139,6 +151,7 @@ if [[ "$OS" == "Darwin" ]]; then
 
   ensure_git_lfs
   clone_repo
+  install_runner
   install_requirements_file
   install_requirements
   install_env_file
@@ -189,6 +202,7 @@ if [[ "$OS" == "Linux" ]]; then
 
     ensure_git_lfs
     clone_repo
+    install_runner
     install_requirements_file
     install_requirements
     install_env_file
