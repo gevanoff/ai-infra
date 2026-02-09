@@ -53,6 +53,7 @@ Subprocess helper:
 - Configure the model with `LIGHTON_OCR_MODEL_ID` (default: `lightonai/LightOnOCR-2-1B`).
 - Ensure the venv has `torch`, `transformers`, and `pillow` installed.
 - The installer copies the runner to `/var/lib/lighton-ocr/app/scripts/run_lighton_ocr.py`.
+- For subprocess mode, set `LIGHTON_OCR_RUN_COMMAND` to use `/var/lib/lighton-ocr/venv/bin/python3` (not system `python3`).
 
 Model env var:
 - `LIGHTON_OCR_MODEL_ID` is the single source of truth. It drives both the `/v1/models` response and the subprocess runner model.

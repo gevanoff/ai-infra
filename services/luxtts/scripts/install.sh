@@ -75,6 +75,38 @@ install_env_file() {
   sudo chmod 644 "$ENV_FILE"
 }
 
+ensure_libsndfile() {
+  if [[ "$OS" == "Darwin" ]]; then
+    if command -v brew >/dev/null 2>&1; then
+      brew list libsndfile >/dev/null 2>&1 || brew install libsndfile
+    fi
+    return 0
+  fi
+  if [[ "$OS" == "Linux" ]]; then
+    if command -v apt-get >/dev/null 2>&1; then
+      sudo -E env DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1 || true
+      sudo -E env DEBIAN_FRONTEND=noninteractive apt-get install -y libsndfile1 >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+}
+
+maybe_patch_env_run_command() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return 0
+  fi
+  local vpy
+  vpy="$(venv_python)"
+  if grep -qE '^LUXTTS_RUN_COMMAND=python3\s+scripts/run_luxtts\.py\s*$' "$ENV_FILE"; then
+    note "Patching LUXTTS_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+    if command -v perl >/dev/null 2>&1; then
+      sudo perl -pi -e 's/^LUXTTS_RUN_COMMAND=python3\s+scripts\/run_luxtts\.py\s*$/LUXTTS_RUN_COMMAND='"${vpy//\//\/}"' \/var\/lib\/luxtts\/app\/scripts\/run_luxtts.py/' "$ENV_FILE"
+    else
+      sudo sed -i.bak "s|^LUXTTS_RUN_COMMAND=python3 scripts/run_luxtts.py\s*$|LUXTTS_RUN_COMMAND=${vpy} /var/lib/luxtts/app/scripts/run_luxtts.py|" "$ENV_FILE" || true
+    fi
+  fi
+}
+
 install_shim() {
   if [[ ! -f "$SHIM_SRC" ]]; then
     echo "ERROR: lux_tts_server.py not found at ${SHIM_SRC}" >&2
@@ -158,11 +190,13 @@ if [[ "$OS" == "Darwin" ]]; then
 
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
   sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+  ensure_libsndfile
   ensure_venv_package "soundfile"
 
   clone_repo
   install_requirements
   install_env_file
+  maybe_patch_env_run_command
   install_shim
 
   sudo sed "s/<string>luxtts<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
@@ -171,7 +205,14 @@ if [[ "$OS" == "Darwin" ]]; then
   plutil -lint "$DST" >/dev/null
 
   launchctl bootout system/"$LABEL" 2>/dev/null || true
-  launchctl bootstrap system "$DST"
+  if ! launchctl bootstrap system "$DST"; then
+    if launchctl print system/"$LABEL" >/dev/null 2>&1; then
+      note "WARN: launchctl bootstrap failed for ${LABEL}, but job is already loaded; continuing."
+    else
+      note "ERROR: launchctl bootstrap failed for ${LABEL}."
+      exit 1
+    fi
+  fi
   launchctl kickstart -k system/"$LABEL"
   exit 0
 fi
@@ -207,11 +248,13 @@ if [[ "$OS" == "Linux" ]]; then
 
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade pip setuptools wheel
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install fastapi "uvicorn[standard]" httpx
+    ensure_libsndfile
     ensure_venv_package "soundfile"
 
     clone_repo
     install_requirements
     install_env_file
+    maybe_patch_env_run_command
     install_shim
 
     SERVICE_UNIT_SRC="${HERE}/../systemd/luxtts.service"

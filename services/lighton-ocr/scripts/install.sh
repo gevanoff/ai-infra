@@ -31,6 +31,14 @@ REQ_FILE="${HERE}/../requirements.txt"
 RUNNER_SRC="${HERE}/../scripts/run_lighton_ocr.py"
 REPO_URL_DEFAULT="https://huggingface.co/lightonai/LightOnOCR-2-1B"
 
+venv_python() {
+  if [[ -x "${VENV_PATH}/bin/python3" ]]; then
+    echo "${VENV_PATH}/bin/python3"
+  else
+    echo "${VENV_PATH}/bin/python"
+  fi
+}
+
 install_env_file() {
   if [[ -f "$ENV_FILE" ]]; then
     note "Env file already exists at ${ENV_FILE}"
@@ -71,6 +79,24 @@ install_runner() {
   sudo cp -f "$RUNNER_SRC" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
   sudo chown "${SERVICE_USER}":staff "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py" 2>/dev/null || sudo chown "${SERVICE_USER}":"${SERVICE_USER}" "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
   sudo chmod 755 "${SERVICE_HOME}/app/scripts/run_lighton_ocr.py"
+}
+
+maybe_patch_env_run_command() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return 0
+  fi
+  local vpy
+  vpy="$(venv_python)"
+  # If the env file explicitly uses system python3 for the runner, rewrite it to the venv python.
+  # This avoids runtime errors like: ModuleNotFoundError: No module named 'PIL'.
+  if grep -qE '^LIGHTON_OCR_RUN_COMMAND=python3\s+scripts/run_lighton_ocr\.py\s*$' "$ENV_FILE"; then
+    note "Patching LIGHTON_OCR_RUN_COMMAND in ${ENV_FILE} to use venv python (${vpy})"
+    if command -v perl >/dev/null 2>&1; then
+      sudo perl -pi -e 's/^LIGHTON_OCR_RUN_COMMAND=python3\s+scripts\/run_lighton_ocr\.py\s*$/LIGHTON_OCR_RUN_COMMAND='"${vpy//\//\/}"' scripts\/run_lighton_ocr.py/' "$ENV_FILE"
+    else
+      sudo sed -i.bak "s|^LIGHTON_OCR_RUN_COMMAND=python3 scripts/run_lighton_ocr.py\s*$|LIGHTON_OCR_RUN_COMMAND=${vpy} scripts/run_lighton_ocr.py|" "$ENV_FILE" || true
+    fi
+  fi
 }
 
 clone_repo() {
@@ -155,6 +181,7 @@ if [[ "$OS" == "Darwin" ]]; then
   install_requirements_file
   install_requirements
   install_env_file
+  maybe_patch_env_run_command
   install_shim
 
   sudo sed "s/<string>lightonocr<\/string>/<string>${SERVICE_USER}<\/string>/" "$SRC" | sudo tee "$DST" >/dev/null
@@ -206,6 +233,7 @@ if [[ "$OS" == "Linux" ]]; then
     install_requirements_file
     install_requirements
     install_env_file
+    maybe_patch_env_run_command
     install_shim
 
     SERVICE_UNIT_SRC="${HERE}/../systemd/lighton-ocr.service"
