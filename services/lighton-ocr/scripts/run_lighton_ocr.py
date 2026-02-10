@@ -121,6 +121,36 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _supported_pipeline_tasks() -> list[str]:
+    try:
+        from transformers.pipelines import PIPELINE_REGISTRY
+
+        return sorted(list(PIPELINE_REGISTRY.get_supported_tasks()))
+    except Exception:
+        return []
+
+
+def _pick_task(request_payload: Dict[str, Any]) -> list[str]:
+    # Allow explicit override per-request.
+    raw = request_payload.get("task") or request_payload.get("operation")
+    if isinstance(raw, str) and raw.strip():
+        value = raw.strip()
+        if value.lower() == "auto":
+            return ["image-text-to-text", "image-to-text"]
+        return [value]
+
+    env_task = (_env("LIGHTON_OCR_TASK") or "").strip()
+    if env_task:
+        if env_task.lower() == "auto":
+            return ["image-text-to-text", "image-to-text"]
+        return [env_task]
+
+    # Transformers v5 removed/renamed several tasks; for OCR the modern choice is
+    # "image-text-to-text" (image + optional prompt -> text). We keep a fallback for
+    # older Transformers versions.
+    return ["image-text-to-text", "image-to-text"]
+
+
 def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     model_id = _env("LIGHTON_OCR_MODEL_ID", "lightonai/LightOnOCR-2-1B")
     max_tokens = _int_env("LIGHTON_OCR_MAX_TOKENS", 256)
@@ -131,17 +161,56 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         raise RuntimeError(f"transformers is required for OCR: {exc}")
 
+    if request_payload.get("list_tasks") is True:
+        return {
+            "tasks": _supported_pipeline_tasks(),
+            "model": model_id,
+        }
+
     # LightOnOCR checkpoints may use a custom Transformers architecture (e.g. model_type=mistral3).
     # Enabling trust_remote_code allows Transformers to load custom config/model code specified by the repo.
     trust_remote_code = _bool_env("LIGHTON_OCR_TRUST_REMOTE_CODE", default=str(model_id).startswith("lightonai/"))
-    pipe = pipeline("image-to-text", model=model_id, trust_remote_code=trust_remote_code)
+
+    last_exc: Optional[BaseException] = None
+    pipe = None
+    task_candidates = _pick_task(request_payload)
+    for task in task_candidates:
+        try:
+            pipe = pipeline(task, model=model_id, trust_remote_code=trust_remote_code)
+            break
+        except KeyError as exc:
+            # Unknown task name for this Transformers version.
+            last_exc = exc
+            continue
+
+    if pipe is None:
+        tasks = _supported_pipeline_tasks()
+        hint = f"; supported tasks: {tasks}" if tasks else ""
+        raise RuntimeError(f"No usable pipeline task found (tried {task_candidates}): {last_exc}{hint}")
     if device in {"cuda", "mps"}:
         try:
             pipe.model.to(device)
         except Exception:
             pass
 
-    result = pipe(image, max_new_tokens=max_tokens)
+    # Allow callers to pass arbitrary pipeline inputs/params. For OCR the default input
+    # is the decoded PIL image, with optional prompt/text for image-text-to-text.
+    inputs: Any
+    if "inputs" in request_payload:
+        inputs = request_payload.get("inputs")
+    else:
+        prompt = request_payload.get("prompt") or request_payload.get("text")
+        if prompt is not None and isinstance(prompt, str) and prompt.strip():
+            inputs = {"image": image, "text": prompt.strip()}
+        else:
+            inputs = image
+
+    params: Dict[str, Any] = {}
+    if isinstance(request_payload.get("parameters"), dict):
+        params.update(request_payload["parameters"])  # type: ignore[index]
+    params.setdefault("max_new_tokens", max_tokens)
+
+    result = pipe(inputs, **params)
     text = None
     if isinstance(result, list) and result:
         first = result[0]
