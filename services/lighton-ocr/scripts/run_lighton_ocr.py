@@ -263,7 +263,11 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
             prompt_str = (_env("LIGHTON_OCR_DEFAULT_PROMPT") or "Read the text in this image.").strip()
 
         if prompt_str:
-            inputs = {"image": image, "text": prompt_str}
+            if (selected_task or "").strip().lower() == "image-text-to-text":
+                # Transformers v5 image-text-to-text pipeline expects the key "images".
+                inputs = {"images": image, "text": prompt_str}
+            else:
+                inputs = {"image": image, "text": prompt_str}
         else:
             inputs = image
 
