@@ -61,8 +61,17 @@ def _load_image_bytes(request_payload: Dict[str, Any], input_path: Optional[Path
 
     image_url = request_payload.get("image_url")
     if image_url:
+        url_str = str(image_url).strip()
+        # Guard against common copy/paste placeholders like "https://…png".
+        # urllib/http.client requires Latin-1 encodable host/header values.
+        if "…" in url_str or "\u2026" in url_str:
+            raise ValueError("image_url contains an ellipsis (…). Provide a full URL.")
+        try:
+            url_str.encode("ascii")
+        except UnicodeEncodeError:
+            raise ValueError("image_url must be ASCII. Provide a fully-qualified URL without unicode characters.")
         req = urllib.request.Request(
-            str(image_url),
+            url_str,
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; LightOnOCR/1.0; +https://github.com/gevanoff/ai-infra)",
                 "Accept": "image/*,*/*;q=0.8",
@@ -92,8 +101,17 @@ def _select_device() -> str:
     return device
 
 
-def _resolve_device() -> str:
-    device = _select_device()
+def _select_device_from_request(request_payload: Dict[str, Any]) -> str:
+    raw = request_payload.get("device")
+    if isinstance(raw, str):
+        value = raw.strip().lower()
+        if value in {"auto", "cpu", "cuda", "mps"}:
+            return value
+    return _select_device()
+
+
+def _resolve_device(request_payload: Optional[Dict[str, Any]] = None) -> str:
+    device = _select_device_from_request(request_payload or {})
     if device == "cpu":
         return "cpu"
     if device == "cuda":
@@ -112,6 +130,17 @@ def _resolve_device() -> str:
         pass
 
     return "cpu"
+
+
+def _pipeline_device_arg(device: str) -> Any:
+    # transformers.pipeline accepts -1 for CPU, int device id for CUDA, or strings/torch.device.
+    if device == "cpu":
+        return -1
+    if device == "cuda":
+        return 0
+    if device == "mps":
+        return "mps"
+    return -1
 
 
 def _bool_env(name: str, default: bool = False) -> bool:
@@ -154,7 +183,7 @@ def _pick_task(request_payload: Dict[str, Any]) -> list[str]:
 def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     model_id = _env("LIGHTON_OCR_MODEL_ID", "lightonai/LightOnOCR-2-1B")
     max_tokens = _int_env("LIGHTON_OCR_MAX_TOKENS", 256)
-    device = _resolve_device()
+    device = _resolve_device(request_payload)
 
     try:
         from transformers import pipeline
@@ -167,6 +196,9 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
             "model": model_id,
         }
 
+    if image is None:
+        raise ValueError("No image input provided")
+
     # LightOnOCR checkpoints may use a custom Transformers architecture (e.g. model_type=mistral3).
     # Enabling trust_remote_code allows Transformers to load custom config/model code specified by the repo.
     trust_remote_code = _bool_env("LIGHTON_OCR_TRUST_REMOTE_CODE", default=str(model_id).startswith("lightonai/"))
@@ -176,10 +208,38 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     task_candidates = _pick_task(request_payload)
     for task in task_candidates:
         try:
-            pipe = pipeline(task, model=model_id, trust_remote_code=trust_remote_code)
+            pipe = pipeline(
+                task,
+                model=model_id,
+                trust_remote_code=trust_remote_code,
+                device=_pipeline_device_arg(device),
+            )
             break
         except KeyError as exc:
             # Unknown task name for this Transformers version.
+            last_exc = exc
+            continue
+        except Exception as exc:
+            # If CUDA is present but memory is exhausted (often due to other processes),
+            # retry on CPU to keep the service functional.
+            msg = f"{type(exc).__name__}: {exc}"
+            if device != "cpu" and ("out of memory" in msg.lower() or "cuda" in msg.lower() and "memory" in msg.lower()):
+                try:
+                    sys.stderr.write("LightOnOCR: CUDA/MPS memory issue; retrying pipeline on CPU\n")
+                except Exception:
+                    pass
+                device = "cpu"
+                try:
+                    pipe = pipeline(
+                        task,
+                        model=model_id,
+                        trust_remote_code=trust_remote_code,
+                        device=_pipeline_device_arg(device),
+                    )
+                    break
+                except Exception as exc2:
+                    last_exc = exc2
+                    continue
             last_exc = exc
             continue
 
@@ -187,12 +247,6 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
         tasks = _supported_pipeline_tasks()
         hint = f"; supported tasks: {tasks}" if tasks else ""
         raise RuntimeError(f"No usable pipeline task found (tried {task_candidates}): {last_exc}{hint}")
-    if device in {"cuda", "mps"}:
-        try:
-            pipe.model.to(device)
-        except Exception:
-            pass
-
     # Allow callers to pass arbitrary pipeline inputs/params. For OCR the default input
     # is the decoded PIL image, with optional prompt/text for image-text-to-text.
     inputs: Any
@@ -238,6 +292,13 @@ def main() -> int:
         return 2
 
     request_payload = _read_json(Path(request_path))
+
+    # Support a lightweight "capabilities" call without requiring image input.
+    if request_payload.get("list_tasks") is True:
+        response = _run_ocr(image=None, request_payload=request_payload)  # type: ignore[arg-type]
+        _write_json(Path(output_path), response)
+        return 0
+
     image_bytes = _load_image_bytes(request_payload, Path(input_path) if input_path else None)
     image = _load_image_pil(image_bytes)
 
