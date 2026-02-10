@@ -114,6 +114,13 @@ def _resolve_device() -> str:
     return "cpu"
 
 
+def _bool_env(name: str, default: bool = False) -> bool:
+    raw = _env(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     model_id = _env("LIGHTON_OCR_MODEL_ID", "lightonai/LightOnOCR-2-1B")
     max_tokens = _int_env("LIGHTON_OCR_MAX_TOKENS", 256)
@@ -124,7 +131,10 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         raise RuntimeError(f"transformers is required for OCR: {exc}")
 
-    pipe = pipeline("image-to-text", model=model_id)
+    # LightOnOCR checkpoints may use a custom Transformers architecture (e.g. model_type=mistral3).
+    # Enabling trust_remote_code allows Transformers to load custom config/model code specified by the repo.
+    trust_remote_code = _bool_env("LIGHTON_OCR_TRUST_REMOTE_CODE", default=str(model_id).startswith("lightonai/"))
+    pipe = pipeline("image-to-text", model=model_id, trust_remote_code=trust_remote_code)
     if device in {"cuda", "mps"}:
         try:
             pipe.model.to(device)
