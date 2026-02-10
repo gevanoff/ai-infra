@@ -205,6 +205,7 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
 
     last_exc: Optional[BaseException] = None
     pipe = None
+    selected_task: Optional[str] = None
     task_candidates = _pick_task(request_payload)
     for task in task_candidates:
         try:
@@ -214,6 +215,7 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
                 trust_remote_code=trust_remote_code,
                 device=_pipeline_device_arg(device),
             )
+            selected_task = task
             break
         except KeyError as exc:
             # Unknown task name for this Transformers version.
@@ -236,6 +238,7 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
                         trust_remote_code=trust_remote_code,
                         device=_pipeline_device_arg(device),
                     )
+                    selected_task = task
                     break
                 except Exception as exc2:
                     last_exc = exc2
@@ -247,15 +250,20 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
         tasks = _supported_pipeline_tasks()
         hint = f"; supported tasks: {tasks}" if tasks else ""
         raise RuntimeError(f"No usable pipeline task found (tried {task_candidates}): {last_exc}{hint}")
-    # Allow callers to pass arbitrary pipeline inputs/params. For OCR the default input
-    # is the decoded PIL image, with optional prompt/text for image-text-to-text.
+    # Allow callers to pass arbitrary pipeline inputs/params.
     inputs: Any
     if "inputs" in request_payload:
         inputs = request_payload.get("inputs")
     else:
         prompt = request_payload.get("prompt") or request_payload.get("text")
-        if prompt is not None and isinstance(prompt, str) and prompt.strip():
-            inputs = {"image": image, "text": prompt.strip()}
+        prompt_str = prompt.strip() if isinstance(prompt, str) else ""
+
+        # For Transformers v5 "image-text-to-text", text is required.
+        if (selected_task or "").strip().lower() == "image-text-to-text" and not prompt_str:
+            prompt_str = (_env("LIGHTON_OCR_DEFAULT_PROMPT") or "Read the text in this image.").strip()
+
+        if prompt_str:
+            inputs = {"image": image, "text": prompt_str}
         else:
             inputs = image
 
