@@ -188,14 +188,17 @@ install_requirements() {
     exit 1
   fi
 
-  note "Installing pinned requirements: ${SERVICE_HOME}/requirements.txt"
-  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "${SERVICE_HOME}/requirements.txt"
-
+  # Install upstream requirements first (best-effort), then apply our pinned requirements last.
+  # This makes our pins authoritative and avoids upstream pins downgrading critical deps.
   local req_file="${SERVICE_HOME}/app/requirements.txt"
   if [[ -f "$req_file" ]]; then
-    note "Installing upstream requirements: ${req_file}"
+    note "Installing upstream requirements (best-effort): ${req_file}"
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install -r "$req_file" || true
   fi
+
+  note "Installing pinned requirements (authoritative): ${SERVICE_HOME}/requirements.txt"
+  sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install --upgrade -r "${SERVICE_HOME}/requirements.txt"
+
   if [[ -n "${LIGHTON_OCR_PIP_EXTRA:-}" ]]; then
     note "Installing extra pip packages from LIGHTON_OCR_PIP_EXTRA"
     sudo -u "${SERVICE_USER}" -H "$VENV_PATH/bin/pip" install ${LIGHTON_OCR_PIP_EXTRA}
