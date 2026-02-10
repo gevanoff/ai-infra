@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import sys
+import tempfile
 import urllib.request
 from io import BytesIO
 from pathlib import Path
@@ -180,6 +181,101 @@ def _pick_task(request_payload: Dict[str, Any]) -> list[str]:
     return ["image-text-to-text", "image-to-text"]
 
 
+def _should_use_lighton_native(model_id: str, request_payload: Dict[str, Any]) -> bool:
+    # LightOnOCR-2 models are best used via LightOnOcrProcessor.apply_chat_template + model.generate.
+    # The generic pipeline("image-text-to-text") path can fail with token/feature mismatches.
+    model_id_l = (model_id or "").lower()
+    if "lightonocr" not in model_id_l:
+        return False
+
+    raw = request_payload.get("task") or request_payload.get("operation")
+    if isinstance(raw, str) and raw.strip():
+        task = raw.strip().lower()
+        if task in {"image-text-to-text", "ocr", "auto"}:
+            return True
+
+    # Default OCR behavior.
+    return True
+
+
+def _run_lighton_native(image_path: str, request_payload: Dict[str, Any], model_id: str) -> Dict[str, Any]:
+    try:
+        import torch
+        from transformers import LightOnOcrForConditionalGeneration, LightOnOcrProcessor
+    except Exception as exc:
+        raise RuntimeError(f"LightOnOCR native path requires transformers>=5 and torch: {exc}")
+
+    max_tokens = _int_env("LIGHTON_OCR_MAX_TOKENS", 256)
+    device = _resolve_device(request_payload)
+
+    if device == "cuda" and not torch.cuda.is_available():
+        device = "cpu"
+    if device == "mps" and not (getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()):
+        device = "cpu"
+
+    if device == "cuda":
+        dtype = torch.bfloat16
+    else:
+        # MPS + CPU are safest with float32.
+        dtype = torch.float32
+
+    prompt = request_payload.get("prompt") or request_payload.get("text")
+    prompt_str = prompt.strip() if isinstance(prompt, str) else ""
+
+    conversation_content: list[dict[str, Any]] = [{"type": "image", "url": image_path}]
+    if prompt_str:
+        conversation_content.append({"type": "text", "text": prompt_str})
+
+    conversation = [{"role": "user", "content": conversation_content}]
+
+    processor = LightOnOcrProcessor.from_pretrained(model_id)
+    model = LightOnOcrForConditionalGeneration.from_pretrained(model_id, torch_dtype=dtype).to(device)
+
+    inputs = processor.apply_chat_template(
+        conversation,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+    )
+    inputs = {k: (v.to(device=device, dtype=dtype) if v.is_floating_point() else v.to(device)) for k, v in inputs.items()}
+
+    generate_kwargs: Dict[str, Any] = {}
+    if isinstance(request_payload.get("parameters"), dict):
+        generate_kwargs.update(request_payload["parameters"])  # type: ignore[index]
+    generate_kwargs.setdefault("max_new_tokens", max_tokens)
+
+    try:
+        output_ids = model.generate(**inputs, **generate_kwargs)
+    except Exception as exc:
+        msg = f"{type(exc).__name__}: {exc}"
+        if device != "cpu" and ("out of memory" in msg.lower() or ("cuda" in msg.lower() and "memory" in msg.lower())):
+            try:
+                sys.stderr.write("LightOnOCR: CUDA/MPS memory issue; retrying native generate on CPU\n")
+            except Exception:
+                pass
+            device = "cpu"
+            dtype = torch.float32
+            model = LightOnOcrForConditionalGeneration.from_pretrained(model_id, torch_dtype=dtype).to(device)
+            inputs = {k: (v.to(device=device, dtype=dtype) if v.is_floating_point() else v.to(device)) for k, v in inputs.items()}
+            output_ids = model.generate(**inputs, **generate_kwargs)
+        else:
+            raise
+
+    generated_ids = output_ids[0, inputs["input_ids"].shape[1] :]
+    output_text = processor.decode(generated_ids, skip_special_tokens=True)
+
+    return {
+        "text": output_text,
+        "model": model_id,
+        "data": [{"text": output_text}],
+        "raw": {"output_text": output_text},
+        "backend": "lighton-native",
+        "device": device,
+        "dtype": str(dtype).replace("torch.", ""),
+    }
+
+
 def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
     model_id = _env("LIGHTON_OCR_MODEL_ID", "lightonai/LightOnOCR-2-1B")
     max_tokens = _int_env("LIGHTON_OCR_MAX_TOKENS", 256)
@@ -195,6 +291,12 @@ def _run_ocr(image, request_payload: Dict[str, Any]) -> Dict[str, Any]:
             "tasks": _supported_pipeline_tasks(),
             "model": model_id,
         }
+
+    # Prefer the model's native inference path when using LightOnOCR-2.
+    # This avoids token/feature mismatches in the generic image-text-to-text pipeline.
+    image_path = request_payload.get("_image_path")
+    if isinstance(image_path, str) and image_path.strip() and _should_use_lighton_native(model_id, request_payload):
+        return _run_lighton_native(image_path.strip(), request_payload, model_id)
 
     if image is None:
         raise ValueError("No image input provided")
@@ -312,11 +414,28 @@ def main() -> int:
         return 0
 
     image_bytes = _load_image_bytes(request_payload, Path(input_path) if input_path else None)
-    image = _load_image_pil(image_bytes)
 
-    response = _run_ocr(image, request_payload)
-    _write_json(Path(output_path), response)
-    return 0
+    # Provide an on-disk image reference for the native LightOnOCR processor.
+    tmp_path: Optional[str] = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="lightonocr_", suffix=".png", delete=False) as tmp:
+            tmp.write(image_bytes)
+            tmp.flush()
+            tmp_path = tmp.name
+        request_payload["_image_path"] = tmp_path
+
+        # For pipeline fallback, we still decode to PIL.
+        image = _load_image_pil(image_bytes)
+
+        response = _run_ocr(image, request_payload)
+        _write_json(Path(output_path), response)
+        return 0
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
